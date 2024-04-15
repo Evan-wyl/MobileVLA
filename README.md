@@ -1,1 +1,1 @@
-# MobileVLA
+# MobileVLA: Vision Language Action Model for Mobile Devices
