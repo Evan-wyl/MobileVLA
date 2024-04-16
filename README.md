@@ -8,9 +8,18 @@ MobileVLA is expected to be a smart assistant by deploying on mobile devices.
 
 ## Prerequisite:
 
-### Step 1
+### Step 0
+
+Follow the instructions in the [MobileVLM](https://github.com/Meituan-AutoML/MobileVLM) and [CALVIN](https://github.com/mees/calvin) to download the necessary dataset and VLM pretrained Models.
 
 Download the [CALVIN](https://github.com/mees/calvin) dataset
+
+```
+cd $HULC_ROOT/dataset
+sh download_data.sh D | ABC | ABCD | debug
+```
+
+Download the released [MobileVLM](https://github.com/Meituan-AutoML/MobileVLM) model:
 
 
 
