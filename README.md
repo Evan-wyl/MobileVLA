@@ -8,15 +8,6 @@ MobileVLA is expected to be a smart assistant by deploying on mobile devices.
 
 ## Prerequisite:
 
-### Step 0
-
-Config Environment
-
-- Ubuntu 20.04
-- Cuda 12.2
-
-
-
 ### Step 1
 
 Download the [CALVIN](https://github.com/mees/calvin) dataset
