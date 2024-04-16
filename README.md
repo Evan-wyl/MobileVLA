@@ -18,15 +18,15 @@ Download the [CALVIN](https://github.com/mees/calvin) dataset
 
 #### CALVIN
 
-Original: https://github.com/mees/calvin License: MIT
+Original: https://github.com/mees/calvin License: [MIT](https://github.com/mees/calvin/blob/main/LICENSE)
 
 #### ByteDance RoboFlamingo
 
-Original: https://github.com/RoboFlamingo/RoboFlamingo License: MIT
+Original: https://github.com/RoboFlamingo/RoboFlamingo License: [MIT](https://github.com/RoboFlamingo/RoboFlamingo/blob/main/LICENSE)
 
 #### Meituan MobileVLM
 
-Original: https://github.com/Meituan-AutoML/MobileVLM License: MIT
+Original: https://github.com/Meituan-AutoML/MobileVLM License: [Apache-2.0](https://github.com/Meituan-AutoML/MobileVLM/blob/main/LICENSE)
 
 
 
