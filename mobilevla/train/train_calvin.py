@@ -22,7 +22,8 @@ from transformers import (
     get_cosine_schedule_with_warmup,
     get_linear_schedule_with_warmup,
 )
-from mobilevla.models.factory import create_model_and_transformers, mpt_dict
+
+from mobilevlm.mobilevlm.model.mobilevlm import load_pretrained_model
 
 
 def random_seed(seed=42, rank=0):
@@ -34,6 +35,12 @@ def random_seed(seed=42, rank=0):
 @record
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument()
+
+    args = parser.parse_args()
+
+    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, args.load_8bit, args.load_4bit)
+
 
 
 if __name__ == '__main__':
