@@ -23,7 +23,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from mobilevlm.mobilevlm.model.mobilevlm import load_pretrained_model
+from mobilevlm.mobilevlm.model.mobilellama import MobileLlamaForCausalLM
 
 
 def random_seed(seed=42, rank=0):
@@ -35,12 +35,11 @@ def random_seed(seed=42, rank=0):
 @record
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument()
+    parser.add_argument("--model_path", type=str, default="")
 
     args = parser.parse_args()
 
-    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, args.load_8bit, args.load_4bit)
-
+    model = MobileLlamaForCausalLM.from_pretrained(args.model_path, low_cpu_mem_usage=True)
 
 
 if __name__ == '__main__':
