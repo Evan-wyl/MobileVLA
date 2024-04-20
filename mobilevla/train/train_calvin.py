@@ -23,6 +23,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from transformers import AutoTokenizer, BitsAndBytesConfig
 from mobilevlm.mobilevlm.model.mobilellama import MobileLlamaForCausalLM
 
 
@@ -35,11 +36,30 @@ def random_seed(seed=42, rank=0):
 @record
 def main():
     parser = argparse.ArgumentParser()
+
     parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--device_map", type=str, default="auto")
+    parser.add_argument("--load_8bit", type=bool, default=False)
+    parser.add_argument("--load_4bit", type=bool, default=False)
+    parser.add_argument("--device", type=str, default="cuda")
 
     args = parser.parse_args()
 
-    model = MobileLlamaForCausalLM.from_pretrained(args.model_path, low_cpu_mem_usage=True)
+    kwargs = {"device_map": args.device_map}
+    if args.load_8bit:
+        kwargs['load_in_8bit'] = True
+    elif args.load_4bit:
+        kwargs['load_in_4bit'] = True
+        kwargs['quantization_config'] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type='nf4'
+        )
+    else:
+        kwargs['torch_dtype'] = torch.float16
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_fast=False)
+    model = MobileLlamaForCausalLM.from_pretrained(args.model_path, low_cpu_mem_usage=True, **kwargs)
 
 
 if __name__ == '__main__':
