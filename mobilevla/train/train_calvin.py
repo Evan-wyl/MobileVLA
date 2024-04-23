@@ -34,6 +34,31 @@ def random_seed(seed=42, rank=0):
     random.seed(seed + rank)
 
 
+def world_info_from_env():
+    local_rank = 0
+    for v in (
+        "LOCAL_RANK",
+        "MPI_LOCALRANKID",
+        "SLURM_LOCALID",
+        "OMPI_COMM_WORLD_LOCAL_RANK",
+    ):
+        if v in os.environ:
+            local_rank = int(os.environ[v])
+            break
+    global_rank = 0
+    for v in ("RANK", "PMI_RANK", "SLURM_PROCID", "OMPI_COMM_WORLD_RANK"):
+        if v in os.environ:
+            global_rank = int(os.environ[v])
+            break
+    world_size = 1
+    for v in ("WORLD_SIZE", "PMI_SIZE", "SLURM_NTASKS", "OMPI_COMM_WORLD_SIZE"):
+        if v in os.environ:
+            world_size = int(os.environ[v])
+            break
+
+    return local_rank, global_rank, world_size
+
+
 @record
 def main():
     parser = argparse.ArgumentParser()
@@ -46,8 +71,17 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--debug", default=False, action="store_true")
     parser.add_argument("--real_data", default=False, action="store_true")
+    parser.add_argument("--local-rank", default=0, type=int)
+    parser.add_argument("--report_to_wandb", default=False, action="store_true")
+    parser.add_argument("--wandb_project", type=str)
+    parser.add_argument("--wandb_entity", type=str)
+    parser.add_argument("--run_name", type=str, default="MobileVLA", help="used to name saving directory and wandb run")
+    parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32", help="Floating point precision.",)
+    parser.add_argument("--head_type", type=str, default="lstm")
 
     args = parser.parse_args()
+
+    args.local_rank, args.rank, args.world_size = world_info_from_env()
 
     kwargs = {"device_map": args.device_map}
     if args.load_8bit:
@@ -95,6 +129,27 @@ def main():
         calvin_dataset = get_data(args, image_processor, tokenizer, "calvin")
 
     random_seed(args.seed)
+
+    if args.report_to_wandb:
+        wandb.init(project=args.wandb_project,
+                   entity=args.wandb_entity,
+                   name=args.run_name,
+                   config=vars(args))
+
+    device_id = args.rank % torch.cuda.device_count()
+    if args.precision == "bf16" or args.precision == "amp_bfloat16" or args.precision == "amp_bf16":
+        model = model.bfloat16()
+    elif args.precision == "fp16":
+        model = model.half()
+    else:
+        model = model.float()
+    if args.head_type == "diffusion" and (not args.debug):
+        normalizer = model.diffusion_model.normalizer
+        all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i, 1), True)["actions"] for i in range(0, 10000)])
+        normalizer.fit(all_actions, last_n_dims=1, mode="limits")
+
+    model = model.to(device_id)
+
 
 
 if __name__ == '__main__':
