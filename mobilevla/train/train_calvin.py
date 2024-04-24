@@ -150,6 +150,29 @@ def main():
 
     model = model.to(device_id)
 
+    ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
+
+    def get_grouped_params(model):
+        params_with_wd, params_without_wd = [], []
+
+        def apply_decay(x):
+            return (
+                "gated_cross_attn_layer" in x
+                and "ff_gate" not in x
+                and "attn_gate" not in x
+                and "norm" not in x
+                and "bias" not in x
+            )
+
+        for n, p in model.named_parameters():
+            if apply_decay(n):
+                params_with_wd.append(p)
+            else:
+                params_without_wd.append(p)
+        return [
+            {"params": [p for p in params_with_wd if p.requires_grad], "weight_decay": args.weight_decay},
+            {"params": [p for p in params_without_wd if p.requires_grad], "weight_decay": 0.0}
+        ]
 
 
 if __name__ == '__main__':
