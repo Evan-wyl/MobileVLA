@@ -78,6 +78,12 @@ def main():
     parser.add_argument("--run_name", type=str, default="MobileVLA", help="used to name saving directory and wandb run")
     parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32", help="Floating point precision.",)
     parser.add_argument("--head_type", type=str, default="lstm")
+    parser.add_argument("--learning_rate", default=1e-4, type=float)
+    parser.add_argument("--lr_scheduler", default="constant", type=str, help="constant, linear, or cosine")
+    parser.add_argument("--batch_size_calvin", type=int, default=1)
+    parser.add_argument("--train_num_samples_calvin", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--warmup_steps", default=5000, type=int)
 
     args = parser.parse_args()
 
@@ -173,6 +179,35 @@ def main():
             {"params": [p for p in params_with_wd if p.requires_grad], "weight_decay": args.weight_decay},
             {"params": [p for p in params_without_wd if p.requires_grad], "weight_decay": 0.0}
         ]
+
+    args.learning_rate = args.learning_rate * args.batch_size_calvin / 6
+    optimizer = torch.optim.AdamW(get_grouped_params(ddp_model), lr=args.learning_rate)
+
+    total_training_steps = (
+        (args.train_num_sample_calvin) // (args.batch_size_calvin * args.world_size)
+    ) * args.num_epochs
+
+    if args.rank == 0:
+        print(f"Total training steps: {total_training_steps}")
+
+    if args.lr_scheduler == "linear":
+        lr_scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=args.warmup_steps,
+            num_training_steps=total_training_steps
+        )
+    elif args.lr_scheduler == "cosine":
+        lr_scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=args.warmup_steps,
+            num_training_steps=total_training_steps
+        )
+    elif args.lr_scheduler == "cosine_restart":
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-7)
+    else:
+        lr_scheduler = get_constant_schedule_with_warmup(
+            optimizer, num_warmup_steps=args.warmup_steps
+        )
 
 
 if __name__ == '__main__':
