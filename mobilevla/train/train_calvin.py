@@ -40,37 +40,53 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model_path", type=str, default="")
-    parser.add_argument("--eval_hist_size", type=int, default=-1)
+    parser.add_argument("--load_8bit", type=bool, default=False)
+    parser.add_argument("--load_4bit", type=bool, default=False)
+    parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32",
+                        help="Floating point precision.", )
+
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--head_type", type=str, default="lstm")
+    parser.add_argument("--fusion_mode", default="pre", type=str, help="pre or post to fusion vision info")
+
+    parser.add_argument("--real_data", default=False, action="store_true")
+    parser.add_argument("--batch_size_calvin", type=int, default=1)
+    parser.add_argument("--train_num_samples_calvin", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=1)
+
+    parser.add_argument("--device_map", type=str, default="auto")
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--local-rank", default=0, type=int)
+
     parser.add_argument("--window_size", type=int, default=32)
     parser.add_argument("--n_obs_steps", type=int, default=6)
     parser.add_argument("--tcp_rel", default=False, action="store_true")
     parser.add_argument("--clip_state", default=False, action="store_true")
-    parser.add_argument("--device_map", type=str, default="auto")
-    parser.add_argument("--load_8bit", type=bool, default=False)
-    parser.add_argument("--load_4bit", type=bool, default=False)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--seed", type=int, default=42)
+
+    parser.add_argument("--horovod", default=False, action="action_true", help="Use horovod for distributed training.")
+    parser.add_argument("--dist-backend", default="nccl", type=str, help="distributed backend")
+    parser.add_argument("--dist-url", default="env://", type=str, help="url used to set up distributed training")
+    parser.add_argument("--no-set-device-rank", default=False, action="store_true",
+                        help="Don't set device index from local rank (when CUDA_VISIBLE_DEVICES restricted to one per proc).")
+
+    parser.add_argument("--warmup_steps", default=5000, type=int)
+    parser.add_argument("--learning_rate", default=1e-4, type=float)
+    parser.add_argument("--lr_scheduler", default="constant", type=str, help="constant, linear, or cosine")
+
     parser.add_argument("--debug", default=False, action="store_true")
-    parser.add_argument("--real_data", default=False, action="store_true")
-    parser.add_argument("--local-rank", default=0, type=int)
+    parser.add_argument("--from_scratch", default=False, action="store_true",
+                        help="whether to train the model from scratch")
+    parser.add_argument("--eval_hist_size", type=int, default=-1)
+
     parser.add_argument("--report_to_wandb", default=False, action="store_true")
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_entity", type=str)
     parser.add_argument("--offline", default=False, action="store_true")
     parser.add_argument("--run_name", type=str, default="MobileVLA", help="used to name saving directory and wandb run")
-    parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32", help="Floating point precision.",)
-    parser.add_argument("--head_type", type=str, default="lstm")
-    parser.add_argument("--learning_rate", default=1e-4, type=float)
-    parser.add_argument("--lr_scheduler", default="constant", type=str, help="constant, linear, or cosine")
-    parser.add_argument("--batch_size_calvin", type=int, default=1)
-    parser.add_argument("--train_num_samples_calvin", type=int, default=100)
-    parser.add_argument("--num_epochs", type=int, default=1)
-    parser.add_argument("--warmup_steps", default=5000, type=int)
+
     parser.add_argument("--resume_from_checkpoint", type=str,
                         help="path to checkpoint to resume from, this should contain model, optimizer, and lr_scheduler states",
                         default=None)
-    parser.add_argument("--from_scratch", default=False, action="store_true", help="whether to train the model from scratch")
-    parser.add_argument("--fusion_mode", default="pre", type=str, help="pre or post to fusion vision info")
     parser.add_argument("--delete_previous_checkpoint", action="store_true", help="delete previous checkpoint when saving new checkpoint")
     parser.add_argument("--save_checkpoints_to_wandb", default=False, action="store_true", help="save checkpoints to wandb")
 
