@@ -14,6 +14,7 @@ from huggingface_hub import hf_hub_download
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from mobilevla.data.data import get_data
+from mobilevla.train.distributed import world_info_from_env, init_distributed_device
 from train_utils import get_checkpoint, train_one_epoch_calvin, train_one_epoch_calvin_diff, train_one_epoch_calvin_cotrain, train_one_epoch_calvin_two_way, \
 get_ckpt_name, get_ckpt_name_pattern
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -39,6 +40,11 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--eval_hist_size", type=int, default=-1)
+    parser.add_argument("--window_size", type=int, default=32)
+    parser.add_argument("--n_obs_steps", type=int, default=6)
+    parser.add_argument("--tcp_rel", default=False, action="store_true")
+    parser.add_argument("--clip_state", default=False, action="store_true")
     parser.add_argument("--device_map", type=str, default="auto")
     parser.add_argument("--load_8bit", type=bool, default=False)
     parser.add_argument("--load_4bit", type=bool, default=False)
@@ -50,6 +56,7 @@ def main():
     parser.add_argument("--report_to_wandb", default=False, action="store_true")
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_entity", type=str)
+    parser.add_argument("--offline", default=False, action="store_true")
     parser.add_argument("--run_name", type=str, default="MobileVLA", help="used to name saving directory and wandb run")
     parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32", help="Floating point precision.",)
     parser.add_argument("--head_type", type=str, default="lstm")
@@ -65,12 +72,28 @@ def main():
     parser.add_argument("--from_scratch", default=False, action="store_true", help="whether to train the model from scratch")
     parser.add_argument("--fusion_mode", default="pre", type=str, help="pre or post to fusion vision info")
     parser.add_argument("--delete_previous_checkpoint", action="store_true", help="delete previous checkpoint when saving new checkpoint")
-    parser.add_argument("--save_checkpoint_to_wandb", default=False, action="store_true", help="save checkpoints to wandb")
+    parser.add_argument("--save_checkpoints_to_wandb", default=False, action="store_true", help="save checkpoints to wandb")
 
     args = parser.parse_args()
 
-    args.local_rank, args.rank, args.world_size = world_info_from_env()
+    if args.eval_hist_size == -1:
+        args.eval_hist_size = args.window_size
+        if args.head_type == "diffusion":
+            args.eval_hist_size = args.n_obs_steps
+    if args.tcp_rel:
+        args.clip_state = True
+    if args.save_checkpoints_to_wandb and not args.report_to_wandb:
+        raise ValueError("save_checkpoints_to_wandb requires report_to_wandb")
 
+    if args.offline:
+        os.environ["WANDB_MODE"] = "offline"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    args.local_rank, args.rank, args.world_size = world_info_from_env()
+    device_id = init_distributed_device(args)
+    print("device_id: ", device_id)
+
+    random_seed(seed=args.seed)
     kwargs = {"device_map": args.device_map}
     if args.load_8bit:
         kwargs['load_in_8bit'] = True
@@ -116,7 +139,7 @@ def main():
     else:
         calvin_dataset = get_data(args, image_processor, tokenizer, "calvin")
 
-    random_seed(args.seed)
+    random_seed(args.seed, args.rank)
 
     if args.report_to_wandb:
         wandb.init(project=args.wandb_project,
@@ -293,7 +316,7 @@ def main():
 
             ckpt_name = get_ckpt_name(args)
             torch.save(get_checkpoint(ddp_model), f"{args.run_name}/{ckpt_name}")
-            if args.report_to_wandb and args.save_checkpoint_to_wandb:
+            if args.report_to_wandb and args.save_checkpoints_to_wandb:
                 wandb.save(f"{args.run_name}/{ckpt_name}")
 
 
