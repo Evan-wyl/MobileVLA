@@ -84,6 +84,13 @@ def main():
     parser.add_argument("--train_num_samples_calvin", type=int, default=100)
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--warmup_steps", default=5000, type=int)
+    parser.add_argument("--resume_from_checkpoint", type=str,
+                        help="path to checkpoint to resume from, this should contain model, optimizer, and lr_scheduler states",
+                        default=None)
+    parser.add_argument("--from_scratch", default=False, action="store_true", help="whether to train the model from scratch")
+    parser.add_argument("--fusion_mode", default="pre", type=str, help="pre or post to fusion vision info")
+    parser.add_argument("--delete_previous_checkpoint", action="store_true", help="delete previous checkpoint when saving new checkpoint")
+    parser.add_argument("--save_checkpoint_to_wandb", default=False, action="store_true", help="save checkpoints to wandb")
 
     args = parser.parse_args()
 
@@ -208,6 +215,111 @@ def main():
         lr_scheduler = get_constant_schedule_with_warmup(
             optimizer, num_warmup_steps=args.warmup_steps
         )
+
+    use_diff = (args.head_type == "diffusion")
+
+    if os.path.exists(f"{args.run_name}") and args.resume_from_checkpoint is None:
+        ckpt_name = get_ckpt_name_pattern(args)
+        checkpoint_list = glob.glob(f"{args.run_name}/{ckpt_name}")
+        print(ckpt_name)
+        checkpoint_list = [_ for _ in checkpoint_list if "_step" not in _ and "iter" not in _ and "weights" not in _]
+        if len(checkpoint_list) == 0:
+            print(f"Found no checkpoints for run {args.run_name}.")
+        else:
+            args.resume_from_checkpoint = sorted(checkpoint_list, key=lambda x: int(x.split("_")[-1].split(".")[0]))[-1]
+            print(f"Found checkpoint {args.resume_from_checkpoint} for run {args.run_name}.")
+
+    resume_from_epoch = 0
+    if args.resume_from_checkpoint is not None and not args.from_scratch:
+        if args.rank == 0:
+            print(f"Loading checkpoint from{args.resume_from_checkpoint}")
+        checkpoint = torch.load(args.resume_from_checkpoint, map_location="cpu")
+
+        def filter_ckpt(checkpoint, skip_keys=[]):
+            new_state_dict = OrderedDict()
+            for key, value in checkpoint.items():
+                flag = True
+                for skip_key in skip_keys:
+                    if skip_key in key:
+                        flag = False
+                        break
+
+                if flag:
+                    new_state_dict[key] = value
+        ddp_model.load_state_dict(checkpoint["model_state_dict"], False)
+        if not args.real_data:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+            resume_from_epoch = checkpoint["epoch"] + 1
+    ddp_model.train()
+    if args.real_data:
+        resume_from_epoch = 0
+    for epoch in range(resume_from_epoch, args.num_epochs):
+        calvin_dataset.set_epoch(epoch)
+        calvin_loader = calvin_dataset.dataloader
+
+        if args.head_type == "diffusion":
+            train_one_epoch_calvin_diff(
+                args=args,
+                model=ddp_model,
+                epoch=epoch,
+                tokenizer=tokenizer,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                calvin_loader=calvin_loader,
+                device_id=device_id,
+                wandb=wandb)
+        elif args.fusion_mode == "two_way":
+            train_one_epoch_calvin_two_way(
+                args=args,
+                model=ddp_model,
+                epoch=epoch,
+                tokenizer=tokenizer,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                calvin_loader=calvin_loader,
+                device_id=device_id,
+                wandb=wandb)
+        else:
+            train_one_epoch_calvin(
+                args=args,
+                model=ddp_model,
+                epoch=epoch,
+                tokenizer=tokenizer,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                calvin_loader=calvin_loader,
+                device_id=device_id,
+                wandb=wandb)
+
+        if args.rank == 0:
+            if not os.path.exists(args.run_name):
+                os.makedirs(args.run_name)
+
+            checkpoint_dict = {
+                "epoch": epoch,
+                "model_state_dict": get_checkpoint(ddp_model),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "lr_scheduler_state_dict": lr_scheduler.state_dict()
+            }
+
+            ckpt_name = get_ckpt_name(args, epoch)
+            ckpt_path = os.path.join(args.run_name, ckpt_name)
+
+            print(f"Saving checkpoint to {ckpt_path}")
+            torch.save(checkpoint_dict, ckpt_path)
+            if args.delete_previous_checkpoint:
+                if epoch > 0:
+                    os.remove(ckpt_path)
+
+        if args.rank == 0:
+            if not os.path.exists(args.run_name):
+                os.makedirs(args.run_name)
+
+            ckpt_name = get_ckpt_name(args)
+            torch.save(get_checkpoint(ddp_model), f"{args.run_name}/{ckpt_name}")
+            if args.report_to_wandb and args.save_checkpoint_to_wandb:
+                wandb.save(f"{args.run_name}/{ckpt_name}")
 
 
 if __name__ == '__main__':
