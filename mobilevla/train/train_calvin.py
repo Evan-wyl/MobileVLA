@@ -24,9 +24,10 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 from mobilevla.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from mobilevla.models.factory import create_model_and_transforms
 
+from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaModel
 from transformers import AutoTokenizer, BitsAndBytesConfig
-from mobilevlm.mobilevlm.model.mobilellama import MobileLlamaForCausalLM
 
 
 def random_seed(seed=42, rank=0):
@@ -39,7 +40,7 @@ def random_seed(seed=42, rank=0):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--lm_path", type=str, default="mtgv/MobileLLaMA-1.4B-Chat")
     parser.add_argument("--load_8bit", type=bool, default=False)
     parser.add_argument("--load_4bit", type=bool, default=False)
     parser.add_argument("--precision", choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"], default="fp32",
@@ -110,43 +111,9 @@ def main():
     print("device_id: ", device_id)
 
     random_seed(seed=args.seed)
-    kwargs = {"device_map": args.device_map}
-    if args.load_8bit:
-        kwargs['load_in_8bit'] = True
-    elif args.load_4bit:
-        kwargs['load_in_4bit'] = True
-        kwargs['quantization_config'] = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type='nf4'
-        )
-    else:
-        kwargs['torch_dtype'] = torch.float16
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_fast=False)
-    model = MobileLlamaForCausalLM.from_pretrained(args.model_path, low_cpu_mem_usage=True, **kwargs)
 
-    mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
-    mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
-
-    if mm_use_im_patch_token:
-        tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
-    if mm_use_im_start_end:
-        tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
-    model.resize_token_embeddings(len(tokenizer))
-
-    vision_tower = model.get_vision_tower()
-    if 'v2' in getattr(model.config, "mm_projector_type", "ldpnet"):
-        vision_tower.load_image_processor()
-    elif not vision_tower.is_loaded:
-        vision_tower.load_model()
-    vision_tower.to(device=args.device, dtype=torch.float16)
-    image_processor = vision_tower.image_processor
-
-    if hasattr(model.config, "max_sequence_length"):
-        context_len = model.config.max_sequence_length
-    else:
-        context_len = 2048
+    model, image_processor, tokenizer = create_model_and_transforms(
+        lm_path=args.lm_path)
 
     if args.debug:
         calvin_dataset = get_data(args, image_processor, tokenizer, "debug")
@@ -170,12 +137,14 @@ def main():
         model = model.half()
     else:
         model = model.float()
+
     if args.head_type == "diffusion" and (not args.debug):
         normalizer = model.diffusion_model.normalizer
         all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i, 1), True)["actions"] for i in range(0, 10000)])
         normalizer.fit(all_actions, last_n_dims=1, mode="limits")
 
     model = model.to(device_id)
+    # vision_tower.to(device=args.device, dtype=torch.float16)
 
     ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
 
