@@ -64,6 +64,7 @@ try:
 except ImportError:
     hvd = None
 
+
 import logging
 from pathlib import Path
 from typing import Dict, Tuple, Union
@@ -81,7 +82,7 @@ from omegaconf import DictConfig
 import pyhash
 import torch
 from torch.utils.data import Dataset
-from robot_flamingo.data.vl_dataset import CaptionDataset, VQADataset
+from mobilevla.data.vl_dataset import CaptionDataset, VQADataset
 
 hasher = pyhash.fnv1_32()
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ prop_state = DictConfig(
 
 
 def get_validation_window_size(
-        idx: int, min_window_size: int, max_window_size: int
+    idx: int, min_window_size: int, max_window_size: int
 ) -> int:
     """
     In validation step, use hash function instead of random sampling for consistent window sizes across epochs.
@@ -165,7 +166,7 @@ class RandomShiftsAug(nn.Module):
 
     def forward_traj(self, x):
         n, t, c, h, w = x.size()
-        x = x.view(n * t, *x.shape[2:])
+        x = x.view(n*t, *x.shape[2:])
         assert h == w
         padding = tuple([self.pad] * 4)
         x = F.pad(x, padding, 'replicate')
@@ -179,10 +180,10 @@ class RandomShiftsAug(nn.Module):
         base_grid = torch.cat([arange, arange.transpose(1, 0)], dim=2)
         base_grid = base_grid.unsqueeze(0).repeat(n, 1, 1, 1)
         base_grid = base_grid.unsqueeze(1).repeat(1, t, 1, 1, 1)
-        base_grid = base_grid.view(n * t, *base_grid.shape[2:])
+        base_grid = base_grid.view(n*t, *base_grid.shape[2:])
         shift = torch.randint(1,
                               2 * self.pad + 1,
-                              size=(n * t, 1, 1, 2),
+                              size=(n*t, 1, 1, 2),
                               device=x.device,
                               dtype=x.dtype)
         shift *= 2.0 / (h + 2 * self.pad)
@@ -214,26 +215,26 @@ class BaseCalvinDataset(Dataset):
     """
 
     def __init__(
-            self,
-            datasets_dir: Path,
-            proprio_state: DictConfig = prop_state,
-            lang_folder: str = "lang_annotations",
-            num_workers: int = 0,
-            key: str = "lang",
-            obs_space: DictConfig = obs_config,
-            transforms: Dict = {},
-            batch_size: int = 32,
-            window_size: int = 16,
-            min_window_size: int = 16,
-            max_window_size: int = 16,
-            pad: bool = True,
-            aux_lang_loss_window: int = 1,
-            rgb_pad=-1,
-            gripper_pad=-1,
-            traj_cons=False,
-            text_aug=False,
-            dif_ws=False,
-            act_step=1
+        self,
+        datasets_dir: Path,
+        proprio_state: DictConfig = prop_state,
+        lang_folder: str = "lang_annotations",
+        num_workers: int = 0,
+        key: str = "lang",
+        obs_space: DictConfig = obs_config,
+        transforms: Dict = {},
+        batch_size: int = 32,
+        window_size: int = 16,
+        min_window_size: int = 16,
+        max_window_size: int = 16,
+        pad: bool = True,
+        aux_lang_loss_window: int = 1,
+        rgb_pad=-1,
+        gripper_pad=-1,
+        traj_cons=False,
+        text_aug=False,
+        dif_ws=False,
+        act_step=1
     ):
         self.observation_space = obs_space
         self.proprio_state = proprio_state
@@ -257,7 +258,7 @@ class BaseCalvinDataset(Dataset):
         self.lang_folder = lang_folder  # if self.with_lang else None
         self.aux_lang_loss_window = aux_lang_loss_window
         self.traj_cons = traj_cons
-
+       
         with open('/mnt/bn/robotics/lxh/robot-flamingo/enrich_lang_annotations.json', 'r') as f:
             self.enrich_lang = json.load(f)
         self.text_aug = text_aug
@@ -270,8 +271,8 @@ class BaseCalvinDataset(Dataset):
             self.gripper_shift = RandomShiftsAug(gripper_pad)
 
         assert (
-                "validation" in self.abs_datasets_dir.as_posix()
-                or "training" in self.abs_datasets_dir.as_posix()
+            "validation" in self.abs_datasets_dir.as_posix()
+            or "training" in self.abs_datasets_dir.as_posix()
         )
         self.validation = "validation" in self.abs_datasets_dir.as_posix()
         assert self.abs_datasets_dir.is_dir()
@@ -279,12 +280,12 @@ class BaseCalvinDataset(Dataset):
         logger.info("finished loading dataset")
 
     def process_rgb(
-            self,
-            episode: Dict[str, np.ndarray],
-            observation_space: DictConfig,
-            transforms: Dict,
-            seq_idx: int = 0,
-            window_size: int = 0,
+        self,
+        episode: Dict[str, np.ndarray],
+        observation_space: DictConfig,
+        transforms: Dict,
+        seq_idx: int = 0,
+        window_size: int = 0,
     ) -> Dict[str, Dict[str, torch.Tensor]]:
         rgb_obs_keys = observation_space["rgb_obs"]
         seq_rgb_obs_dict = {}
@@ -299,9 +300,9 @@ class BaseCalvinDataset(Dataset):
                 seq_rgb_obs_ = torch.from_numpy(rgb_obs).byte()
             else:  # episode loader
                 seq_rgb_obs_ = torch.from_numpy(
-                    rgb_obs[seq_idx: seq_idx + window_size]
+                    rgb_obs[seq_idx : seq_idx + window_size]
                 ).byte()
-
+            
             if rgb_obs_key in transforms:
                 seq_rgb_obs_ = transforms[rgb_obs_key](seq_rgb_obs_)
             seq_rgb_obs_dict[rgb_obs_key] = seq_rgb_obs_
@@ -309,7 +310,7 @@ class BaseCalvinDataset(Dataset):
         return {"rgb_obs": seq_rgb_obs_dict}
 
     def process_language(
-            self, episode: Dict[str, np.ndarray], transforms: Dict, with_lang: bool
+        self, episode: Dict[str, np.ndarray], transforms: Dict, with_lang: bool
     ):
         return {"lang": episode["language"]}
 
@@ -337,14 +338,14 @@ class BaseCalvinDataset(Dataset):
                 raise ValueError
         else:
             idx, window_size = idx
-
+        
         head = False
         sequence = self._get_sequences(idx, window_size, head=head)
 
         if self.pad:
             pad_size = self._get_pad_size(sequence)
             sequence = self._pad_sequence(sequence, pad_size, head=head)
-
+        
         import copy
         new_list = []
         np_rgb = copy.deepcopy(sequence["rgb_obs"]["rgb_static"].numpy())
@@ -359,7 +360,7 @@ class BaseCalvinDataset(Dataset):
         # print(pad_size, len(new_list))
         return sequence
 
-    def _get_sequences(self, idx: int, window_size: int, head: bool = False) -> Dict:
+    def _get_sequences(self, idx: int, window_size: int, head: bool=False) -> Dict:
         """
         Load sequence of length window_size.
 
@@ -412,13 +413,13 @@ class BaseCalvinDataset(Dataset):
             # last episode
             max_window = self.min_window_size + len(self.episode_lookup) - idx - 1
         elif (
-                self.episode_lookup[idx + window_diff]
-                != self.episode_lookup[idx] + window_diff
+            self.episode_lookup[idx + window_diff]
+            != self.episode_lookup[idx] + window_diff
         ):
             # less than max_episode steps until next episode
             steps_to_next_episode = int(
                 np.nonzero(
-                    self.episode_lookup[idx: idx + window_diff + 1]
+                    self.episode_lookup[idx : idx + window_diff + 1]
                     - (self.episode_lookup[idx] + np.arange(window_diff + 1))
                 )[0][0]
             )
@@ -453,7 +454,7 @@ class BaseCalvinDataset(Dataset):
         """
         return self.max_window_size - len(sequence["actions"])
 
-    def _pad_sequence(self, seq: Dict, pad_size: int, head: bool = False) -> Dict:
+    def _pad_sequence(self, seq: Dict, pad_size: int, head: bool=False) -> Dict:
         """
         Pad a sequence by repeating the last frame.
 
@@ -572,20 +573,18 @@ class BaseCalvinDataset(Dataset):
         if not self.with_lang:
             return info
         use_for_aux_lang_loss = (
-                idx + self.aux_lang_loss_window >= len(self.lang_lookup)
-                or self.lang_lookup[idx] < self.lang_lookup[idx + self.aux_lang_loss_window]
+            idx + self.aux_lang_loss_window >= len(self.lang_lookup)
+            or self.lang_lookup[idx] < self.lang_lookup[idx + self.aux_lang_loss_window]
         )
         info["use_for_aux_lang_loss"] = use_for_aux_lang_loss
         return info
 
 
 class DebugDataset(Dataset):
-    def __init__(self, **kwargs: Any, ):
+    def __init__(self, **kwargs: Any,):
         super().__init__()
-
     def __len__(self) -> int:
         return 10000
-
     def __getitem__(self, index):
         window_size = 8
         rgb = torch.randn(window_size, 3, 200, 200)
@@ -603,15 +602,15 @@ class DiskCalvinDataset(BaseCalvinDataset):
     """
 
     def __init__(
-            self,
-            image_fn: Callable,
-            text_fn: Callable,
-            *args: Any,
-            skip_frames: int = 1,
-            save_format: str = "npz",
-            pretrain: bool = False,
-            partial_data=False,
-            **kwargs: Any,
+        self,
+        image_fn: Callable,
+        text_fn: Callable,
+        *args: Any,
+        skip_frames: int = 1,
+        save_format: str = "npz",
+        pretrain: bool = False,
+        partial_data=False,
+        **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
         self.save_format = save_format
@@ -681,7 +680,7 @@ class DiskCalvinDataset(BaseCalvinDataset):
         return episode
 
     def _build_file_indices_lang(
-            self, abs_datasets_dir: Path
+        self, abs_datasets_dir: Path
     ):
         """
         This method builds the mapping from index to file_name used for loading the episodes of the language dataset.
@@ -730,7 +729,7 @@ class DiskCalvinDataset(BaseCalvinDataset):
                 )
             assert end_idx >= self.max_window_size
             cnt = 0
-
+            
             for idx in range(start_idx, end_idx + 1 - self.min_window_size):
                 if cnt % self.skip_frames == 0:
                     lang_lookup.append(i)
@@ -769,13 +768,13 @@ class DiskCalvinDataset(BaseCalvinDataset):
         gripper_tensors = torch.stack([self.image_fn(s["rgb_obs"]["rgb_gripper"]) for s in sample])
         stacked_language = [s["lang"] for s in sample]
         text_tensors, attention_mask = self.text_fn(stacked_language)
-
+        
         if self.rgb_pad != -1:
             bs, seq_len = image_tensors.shape[:2]
             if self.traj_cons:
                 image_tensors = self.rgb_shift.forward_traj(image_tensors)
             else:
-                image_tensors = image_tensors.view(bs * seq_len, *image_tensors.shape[2:])
+                image_tensors = image_tensors.view(bs*seq_len, *image_tensors.shape[2:])
                 image_tensors = self.rgb_shift(image_tensors)
                 image_tensors = image_tensors.view(bs, seq_len, *image_tensors.shape[1:])
         if self.gripper_pad != -1:
@@ -786,27 +785,27 @@ class DiskCalvinDataset(BaseCalvinDataset):
                 gripper_tensors = gripper_tensors.view(bs * seq_len, *gripper_tensors.shape[2:])
                 gripper_tensors = self.gripper_shift(gripper_tensors)
                 gripper_tensors = gripper_tensors.view(bs, seq_len, *gripper_tensors.shape[1:])
-
+        
         robot_obs = torch.zeros(1)
-
+        
         if self.act_step != 1:
-
+        
             actions = torch.zeros((action_tensors.shape[0], self.window_size, self.act_step, action_tensors.shape[-1]))
             for b in range(action_tensors.shape[0]):
                 for ix in range(self.window_size):
-                    actions[b, ix] = action_tensors[b, ix:ix + self.act_step]
+                    actions[b, ix] = action_tensors[b, ix:ix+self.act_step]
 
             robot_obs = torch.zeros((action_tensors.shape[0], self.window_size, self.act_step, state_tensors.shape[-1]))
             for b in range(action_tensors.shape[0]):
                 for ix in range(self.window_size):
-                    robot_obs[b, ix] = state_tensors[b, ix:ix + self.act_step]
+                    robot_obs[b, ix] = state_tensors[b, ix:ix+self.act_step]
             robot_obs = torch.cat([robot_obs[..., :6], robot_obs[..., [-1]]], dim=-1)
 
             action_tensors = actions
-            image_tensors = image_tensors[:, :-(self.act_step - 1)]
-            gripper_tensors = gripper_tensors[:, :-(self.act_step - 1)]
-            state_tensors = state_tensors[:, :-(self.act_step - 1)]
-
+            image_tensors = image_tensors[:, :-(self.act_step-1)]
+            gripper_tensors = gripper_tensors[:, :-(self.act_step-1)]
+            state_tensors = state_tensors[:, :-(self.act_step-1)]
+        
         return image_tensors, (text_tensors, attention_mask), action_tensors, gripper_tensors, state_tensors, robot_obs
 
 
@@ -842,7 +841,7 @@ class CalvinDataset(Dataset):
         rgb_static = Image.fromarray(frame["rgb_static"])
         rgb_gripper = Image.fromarray(frame["rgb_gripper"])
         actions = np.array(frame["rel_actions"])
-
+        
         actions[..., 6:] = (actions[..., 6:] + 1) // 2
         return rgb_static, text, actions
 
@@ -986,7 +985,7 @@ def preprocess_interleaved(sample, tokenizer, clip_processor, sim_threshold):
     if num_images == 0:
         raise ValueError("No images in sample")
     elif (
-            num_images == 1 and random.random() <= 0.5
+        num_images == 1 and random.random() <= 0.5
     ):  # 50% chance of keeping single image samples
         raise ValueError("Only one image in sample")
 
@@ -1001,7 +1000,7 @@ def get_coco_dataset(args, image_processor, tokenizer, epoch=0):
     coco_ann = "path/to/coco/annotations/captions_train2014.json"
     preprocess_text_fn = functools.partial(preprocess_text_calvin, tokenizer=tokenizer)
     coco_dataset = CaptionDataset(coco_data_dir, coco_ann, preprocess_text_fn, image_processor)
-
+    
     sampler = DistributedSampler(
         coco_dataset,
         num_replicas=args.world_size,
@@ -1010,7 +1009,7 @@ def get_coco_dataset(args, image_processor, tokenizer, epoch=0):
         seed=args.seed,
         drop_last=True,
     )
-
+    
     dataloader = DataLoader(
         coco_dataset,
         batch_size=args.batch_size_vl,
@@ -1022,7 +1021,7 @@ def get_coco_dataset(args, image_processor, tokenizer, epoch=0):
         collate_fn=coco_dataset.collator,
         drop_last=True
     )
-
+    
     return dataloader
 
 
@@ -1032,7 +1031,7 @@ def get_vqa_dataset(args, image_processor, tokenizer, epoch=0):
     vqa_ann = "path/to/vqav2/v2_mscoco_train2014_annotations.json"
     preprocess_text_fn = functools.partial(preprocess_text_calvin, tokenizer=tokenizer)
     vqa_dataset = VQADataset(vqa_data_dir, vqa_questions, vqa_ann, preprocess_text_fn, image_processor)
-
+    
     sampler = DistributedSampler(
         vqa_dataset,
         num_replicas=args.world_size,
@@ -1041,7 +1040,7 @@ def get_vqa_dataset(args, image_processor, tokenizer, epoch=0):
         seed=args.seed,
         drop_last=True,
     )
-
+    
     dataloader = DataLoader(
         vqa_dataset,
         batch_size=args.batch_size_vl,
@@ -1053,7 +1052,7 @@ def get_vqa_dataset(args, image_processor, tokenizer, epoch=0):
         collate_fn=vqa_dataset.collator,
         drop_last=True
     )
-
+    
     return dataloader
 
 
@@ -1253,7 +1252,6 @@ def get_data(args, image_processor, tokenizer, dataset_type, epoch=0):
     return get_dataset_fn(dataset_type)(
         args, image_processor=image_processor, epoch=epoch, tokenizer=tokenizer
     )
-
 
 def load_partial_traj_data():
     with open('partial_task_data.json', 'r') as f:

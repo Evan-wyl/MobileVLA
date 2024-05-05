@@ -15,7 +15,6 @@ class BCMobileVLM(nn.Module):
             lang_encoder: nn.Module,
             vision_encoder: nn.Module,
             mm_projector: nn.Module,
-            vis_dim: int,
             window_size: int = 8,
             use_gripper=False,
             fusion_mode='',
@@ -38,58 +37,59 @@ class BCMobileVLM(nn.Module):
         self.vision_encoder = vision_encoder
         self.mm_projector = mm_projector
 
-        self.use_gripper = use_gripper
-        self.use_state = use_state
-        self.fusion_mode = fusion_mode
-
-        self.vis_dim = vis_dim
         self.window_size = window_size
-
-        self.lang_dim = lang_encoder.config.hidden_size
+        self.use_gripper = use_gripper
+        self.fusion_mode = fusion_mode
+        self.use_state = use_state
+        self.use_diff = use_diff
+        self.diff_horizon = diff_horizon
+        self.last_action = last_action
+        self.n_timesteps = n_timesteps
+        self.state_dim = state_dim
+        self.use_hist = use_hist
+        self.predict_epsilon = predict_epsilon
+        self.multi_step_action = multi_step_action
         self.sep_lm_head = sep_lm_head
+        self.return_feature = return_feature
+        self.pooling = pooling
+        self.decoder_type = decoder_type
+        self.hidden_size = hidden_size
+
+        self.vis_dim = self.vision_encoder.hidden_size
+        self.lang_dim = self.lang_encoder.config.hidden_size
 
         if use_state:
             self.state_fc = nn.Linear(state_dim, self.vis_dim)
         in_features = lang_encoder.lm_head.in_features
 
         if decoder_type == 'lstm':
-            lm_head = DeterministicDecoder(in_features, self.window_size,
+            action_head = DeterministicDecoder(in_features, window_size,
                                            use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode,
                                            use_state=use_state, return_feature=return_feature,
                                            multi_step_action=multi_step_action, pooling=pooling)
-            self.lang_encoder.lm_head = lm_head
+            self.lang_encoder.lm_head = action_head
         elif decoder_type == 'fc':
-            if use_hist:
-                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.window_size,
-                                                                         use_diff=use_diff, last_action=last_action,
-                                                                         fusion_mode=fusion_mode, use_state=use_state,
-                                                                         return_feature=return_feature,
-                                                                         multi_step_action=multi_step_action)
-            elif 'vit_concat' in fusion_mode:
-                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.window_size,
-                                                                         use_diff=use_diff, last_action=last_action,
-                                                                         fusion_mode=fusion_mode, use_state=use_state,
-                                                                         return_feature=return_feature,
-                                                                         multi_step_action=multi_step_action)
-            else:
-                raise NotImplementedError
+            action_head = FCDecoder(in_features, window_size,
+                                    use_diff=use_diff, last_action=last_action,
+                                    fusion_mode=fusion_mode, use_state=use_state,
+                                    return_feature=return_feature,
+                                    multi_step_action=multi_step_action)
+            self.lang_encoder.lm_head = action_head
         elif decoder_type == 'diffusion':
-            if use_diff:
-                self.diffusion_model = DiffusionDecoder(
-                    self.action_head.hidden_size,
-                    self.window_size,
-                    input_dim=self.action_head.out_features + 1,
-                    n_timesteps=n_timesteps,
-                    horizon=diff_horizon,
-                    predict_epsilon=predict_epsilon,
-                )
-            else:
-                raise NotImplementedError
+            action_head = DiffusionDecoder(
+                in_features,
+                window_size,
+                input_dim=in_features + 1,
+                n_timesteps=n_timesteps,
+                horizon=diff_horizon,
+                predict_epsilon=predict_epsilon,
+            )
+            self.lang_encoder.lm_head = action_head
         elif decoder_type == 'gpt':
-            lm_head = GPTDecoder(in_features, self.window_size, use_diff=use_diff, last_action=last_action,
+            action_head = GPTDecoder(in_features, window_size, use_diff=use_diff, last_action=last_action,
                                  fusion_mode=fusion_mode, multi_step_action=multi_step_action, pooling=pooling,
                                  hidden_size=hidden_size)
-            self.lang_encoder.lm_head = self.action_head = lm_head
+            self.lang_encoder.lm_head = action_head
         else:
             raise NotImplementedError
 
@@ -111,8 +111,6 @@ class BCMobileVLM(nn.Module):
         images = vision_x
         if self.use_gripper:
             images = torch.concat([vision_x, vision_gripper], dim=1)
-
-
 
         output = self.lang_encoder(
             input_ids=lang_x,

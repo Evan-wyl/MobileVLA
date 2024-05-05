@@ -535,9 +535,9 @@ class GPT2Model(GPT2PreTrainedModel):
         if num_layers is not None:
             num_layers -= 1
         self.use_layers = num_layers
-
+    
     def get_head_mask(
-            self, head_mask, num_hidden_layers: int, is_attention_chunked: bool = False
+        self, head_mask, num_hidden_layers: int, is_attention_chunked: bool = False
     ):
         """
         Prepare the head mask if needed.
@@ -562,7 +562,7 @@ class GPT2Model(GPT2PreTrainedModel):
             head_mask = [None] * num_hidden_layers
 
         return head_mask
-
+    
     def _convert_head_mask_to_5d(self, head_mask, num_hidden_layers):
         """-> [num_hidden_layers x batch x num_heads x seq_length x seq_length]"""
         if head_mask.dim() == 1:
@@ -728,16 +728,17 @@ class GPT2Model(GPT2PreTrainedModel):
 
 
 def get_gpt_model(input_dim=4096, window_size=32, hidden_size=None, n_layer=8, n_head=8, use_pe=True,
-                  ):
+):
+    
     import transformers
     config = transformers.GPT2Config(
         n_layer=n_layer,
         n_head=n_head,
         n_embd=input_dim,
-        n_ctx=input_dim,
+        n_ctx = input_dim,
         n_positions=window_size
     )
-
+    
     model = GPT2Model(config, use_pe=use_pe)
-
+    
     return model
