@@ -2,130 +2,50 @@ import torch
 from einops import rearrange, repeat
 from torch import nn
 import copy
-from open_flamingo.src.helpers import PerceiverResampler
-from mobilevla.models.action_head import DeterministicDecoder, DiffusionDecoder, FCDecoder, GPTDecoder
 from collections import namedtuple
+
+from mobilevlm.mobilevlm.model.vision_projector import build_vision_projector
+from mobilevla.models.action_head import DeterministicDecoder, DiffusionDecoder, FCDecoder, GPTDecoder
+from mobilevla.train.train_calvin import ModelArguments, DataArguments, TrainingArguments
 
 
 class BCMobileVLM(nn.Module):
     def __init__(
-        self,
-        vision_encoder: nn.Module,
-        lang_encoder: nn.Module,
-        eoc_token_id: int,
-        media_token_id: int,
-        vis_dim: int,
-        cross_attn_every_n_layers: int = 1,
-        use_media_placement_augmentation: bool = False,
-        # this is the window size sampled from the episode
-        window_size: int = 8,
-        use_gripper=False,
-        fusion_mode='',
-        sep_resampler=False,
-        use_state=False,
-        use_diff=False,
-        diff_horizon=32,
-        last_action=False,
-        n_timesteps=150,
-        state_dim=15,
-        use_hist=False,
-        debug=False,
-        predict_epsilon=True,
-        pad_length=-1,
-        multi_step_action=1,
-        sep_lm_head=False,
-        return_feature = False,
-        llm='llama_9b',
-        pooling='max',
-        residual=False,
-        tcp_rel=False,
-        replan=-1,
-        decoder_type='lstm',
-        hidden_size=None,
-        fwd_pred=False,
-        fwd_pred_hand=False,
-        refresh=-1
-    ):
-        """
-        Args:
-            vision_encoder (nn.Module): HF CLIPModel
-            lang_encoder (nn.Module): HF causal language model
-            eoc_token_id (int): Token id for <|endofchunk|>
-            media_token_id (int): Token id for <image>
-            vis_dim (int): Dimension of the visual features.
-                Visual features are projected to match this shape along the last dimension.
-            cross_attn_every_n_layers (int, optional): How often to apply cross attention after transformer layer. Defaults to 1.
-            use_media_placement_augmentation (bool, optional): Whether to randomly assign images to the preceding or following text in training. Defaults to False.
-        """
+            self,
+            vision_encoder: nn.Module,
+            lang_encoder: nn.Module,
+            eoc_token_id: int,
+            model_args: ModelArguments,
+            data_args: DataArguments,
+            training_args: TrainingArguments):
         super().__init__()
-        self.use_gripper = use_gripper
-        self.use_state = use_state
-        self.fusion_mode = fusion_mode
         self.eoc_token_id = eoc_token_id
-        self.media_token_id = media_token_id
-        self.use_media_placement_augmentation = use_media_placement_augmentation
-        self.vis_dim = vis_dim
-        self.window_size = window_size
-        self.tcp_rel = tcp_rel
-        self.act_step = multi_step_action
-        print('window size: {}'.format(window_size))
         self.vision_encoder = vision_encoder
         self.perceiver = PerceiverResampler(dim=self.vis_dim)
-        self.sep_resampler = sep_resampler
-        self.use_hist = use_hist
         self.lang_encoder = lang_encoder
-        self.pad_length = pad_length
-        self.replan = replan
-        if self.replan != -1:
-            self.replan = min(int(replan * self.window_size), 180)
-        self.refresh = refresh
         if hasattr(lang_encoder.config, "d_model"):
             self.lang_dim = lang_encoder.config.d_model  # mpt uses d_model
         else:
             self.lang_dim = lang_encoder.config.hidden_size
-        
-        # print(self.vis_dim, self.lang_dim)
-        
-        self.residual = residual
 
-        if not debug:
-            if 'llama' in llm:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    use_media_placement_augmentation=self.use_media_placement_augmentation,
-                    residual=residual,
-                )
-            else:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    lang_hidden_size=self.lang_dim,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    gradient_checkpointing=False,
-                )
-
-        if sep_resampler:
+        if model_args.sep_perceiver:
             self.perceiver_gripper = PerceiverResampler(dim=self.vis_dim)
             self.perceiver_gripper.load_state_dict(copy.deepcopy(self.perceiver.state_dict()))
-        if use_state:
+        if model_args.use_state:
             self.state_fc = nn.Linear(state_dim, self.vis_dim)
-        if use_hist:
+        if model_args.use_hist:
             self.frame_embs = nn.Parameter(torch.randn(self.window_size, self.vis_dim))
+
         # To-do: nn archiecture for actor
-        self.llm = llm
-        if llm=='llama':
+        if 'llama' in str.lower(model_args.lang_name):
             in_features = lang_encoder.lm_head.in_features
         else:
             in_features = self.lang_dim
-        self.use_diff = use_diff
-        self.decoder_type = decoder_type
-        if decoder_type == 'lstm':
+        if model_args.decoder_type == 'lstm':
             lm_head = DeterministicDecoder(in_features, self.window_size, 
             use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action, pooling=pooling)
             self.lang_encoder.lm_head = lm_head
-        elif decoder_type == 'fc':
+        elif model_args.decoder_type == 'fc':
             if use_hist:
                 self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.window_size, 
                 use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action)
@@ -134,7 +54,7 @@ class BCMobileVLM(nn.Module):
                 use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action)
             else:
                 raise NotImplementedError
-        elif decoder_type == 'diffusion':
+        elif model_args.decoder_type == 'diffusion':
             if use_diff:
                 self.diffusion_model = DiffusionDecoder(
                     self.action_head.hidden_size, 
@@ -146,14 +66,13 @@ class BCMobileVLM(nn.Module):
                 )
             else:
                 raise NotImplementedError
-        elif decoder_type=='gpt':
+        elif model_args.decoder_type=='gpt':
             lm_head = GPTDecoder(in_features, self.window_size, use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, multi_step_action=multi_step_action, pooling=pooling, hidden_size=hidden_size)
             self.lang_encoder.lm_head = self.action_head = lm_head
         else:
             raise NotImplementedError
 
-        self.sep_lm_head = sep_lm_head
-        if sep_lm_head:
+        if model_args.sep_lm_head:
             self.lm_head = self.lang_encoder.lm_head
             self.lang_encoder.lm_head = nn.Identity()
 

@@ -24,22 +24,36 @@ from mobilevla.models.factory import create_model_and_transforms
 
 @dataclass
 class ModelArguments:
-    model_name_or_path: Optional[str] = field(default="facebook/opt-125m")
-    version: Optional[str] = field(default="v0")
-    freeze_backbone: bool = field(default=False)
-    tune_mm_mlp_adapter: bool = field(default=False)
-    vision_tower: Optional[str] = field(default=None)
+    lang_encoder_path: Optional[str] = field(default=None)
+    lang_name: Optional[str] = field(default='MobileLLaMA-1.4B-Chat')
+    vision_encoder_path: Optional[str] = field(default=None)
+    freeze_embed: Optional[bool] = field(default=False)
+    use_state: Optional[bool] = field(default=False)
+    use_hist: Optional[bool] = field(default=True)
+    last_action: Optional[bool] = field(default=False)
+    fusion_mode: Optional[str] = field(default='')
+    sep_perceiver: Optional[bool] = field(default=True)
+    freeze_perceiver: Optional[bool] = field(default=False)
+    sep_lm_head: Optional[bool] = field(default=False)
+    unfreeze_vit: Optional[bool] = field(default=False)
+    return_feature: Optional[bool] = field(default=False)
+    multi_step_action: Optional[int] = field(default=1)
+    pooling: Optional[str] = field(default='max')
+    residual: Optional[bool] = field(default=False)
+    decoder_type: Optional[str] = field(default='lstm')
+    hidden_size: Optional[int] = field(default=None)
     mm_vision_select_layer: Optional[int] = field(default=-1)   # default to the last layer
-    pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
-    mm_projector_type: Optional[str] = field(default='linear')
     mm_use_im_start_end: bool = field(default=False)
     mm_use_im_patch_token: bool = field(default=True)
     mm_vision_select_feature: Optional[str] = field(default="patch")
-    vision_tower_type: Optional[str] = field(default='clip')
 
 
 @dataclass
 class DataArguments:
+    use_gripper: Optional[bool] = field(default=False)
+    debug: Optional[bool] = False
+    pad_length: Optional[int] = field(default=-1)
+
     data_path: str = field(default=None, metadata={"help": "Path to the training data."})
     lazy_preprocess: bool = False
     is_multimodal: bool = False
@@ -50,6 +64,9 @@ class DataArguments:
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
+    window_size: Optional[int] = field(default=32)
+    train_params: Optional[int] = field(default=-1)
+
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     remove_unused_columns: bool = field(default=False)
