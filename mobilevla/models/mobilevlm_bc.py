@@ -19,60 +19,75 @@ class BCMobileVLM(nn.Module):
             data_args: DataArguments,
             training_args: TrainingArguments):
         super().__init__()
-        self.eoc_token_id = eoc_token_id
         self.vision_encoder = vision_encoder
-        self.perceiver = PerceiverResampler(dim=self.vis_dim)
         self.lang_encoder = lang_encoder
+        self.eoc_token_id = eoc_token_id
+        self.model_args = model_args
+        self.data_args = data_args
+        self.training_args = training_args
+
+        self.adapter = build_vision_projector(self.lang_encoder.config)
+
+        if self.model_args.sep_adapter:
+            self.adapter_gripper = build_vision_projector(self.lang_encoder.config)
+            self.adapter_gripper.load_state_dict(copy.deepcopy(self.adapter.state_dict()))
+        if self.model_args.use_state:
+            self.state_fc = nn.Linear(self.model_args.state_dim, self.vis_dim)
+        if self.model_args.use_hist:
+            self.frame_embs = nn.Parameter(torch.randn(self.training_args.window_size, self.vis_dim))
+
         if hasattr(lang_encoder.config, "d_model"):
             self.lang_dim = lang_encoder.config.d_model  # mpt uses d_model
         else:
             self.lang_dim = lang_encoder.config.hidden_size
-
-        if model_args.sep_perceiver:
-            self.perceiver_gripper = PerceiverResampler(dim=self.vis_dim)
-            self.perceiver_gripper.load_state_dict(copy.deepcopy(self.perceiver.state_dict()))
-        if model_args.use_state:
-            self.state_fc = nn.Linear(state_dim, self.vis_dim)
-        if model_args.use_hist:
-            self.frame_embs = nn.Parameter(torch.randn(self.window_size, self.vis_dim))
-
         # To-do: nn archiecture for actor
-        if 'llama' in str.lower(model_args.lang_name):
+        if 'llama' in str.lower(self.model_args.lang_name):
             in_features = lang_encoder.lm_head.in_features
         else:
             in_features = self.lang_dim
-        if model_args.decoder_type == 'lstm':
-            lm_head = DeterministicDecoder(in_features, self.window_size, 
-            use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action, pooling=pooling)
+
+        if self.model_args.decoder_type == 'lstm':
+            lm_head = DeterministicDecoder(in_features, self.training_args.window_size, use_diff=self.model_args.use_diff,
+                                           last_action=self.model_args.last_action, fusion_mode=self.model_args.fusion_mode,
+                                           use_state=model_args.use_state, return_feature=self.model_args.return_feature,
+                                           multi_step_action=self.model_args.multi_step_action, pooling=self.model_args.pooling)
             self.lang_encoder.lm_head = lm_head
-        elif model_args.decoder_type == 'fc':
-            if use_hist:
-                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.window_size, 
-                use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action)
-            elif 'vit_concat' in fusion_mode:
-                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.window_size, 
-                use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, use_state=use_state, return_feature=return_feature, multi_step_action=multi_step_action)
+        elif self.model_args.decoder_type == 'fc':
+            if self.model_args.use_hist:
+                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.training_args.window_size,
+                use_diff=self.model_args.use_diff, last_action=self.model_args.last_action, fusion_mode=self.model_args.fusion_mode,
+                use_state=self.model_args.use_state, return_feature=self.model_args.return_feature,
+                                                                         multi_step_action=self.model_args.multi_step_action)
+            elif 'vit_concat' in self.model_args.fusion_mode:
+                self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.training_args.window_size,
+                                                                         use_diff=self.model_args.use_diff, last_action=self.model_args.last_action,
+                                                                         fusion_mode=self.model_args.fusion_mode, use_state=self.model_args.use_state,
+                                                                         return_feature=self.model_args.return_feature,
+                                                                         multi_step_action=self.model_args.multi_step_action)
             else:
                 raise NotImplementedError
-        elif model_args.decoder_type == 'diffusion':
-            if use_diff:
+        elif self.model_args.decoder_type == 'diffusion':
+            if self.model_args.use_diff:
                 self.diffusion_model = DiffusionDecoder(
                     self.action_head.hidden_size, 
-                    self.window_size,
+                    self.training_args.window_size,
                     input_dim=self.action_head.out_features+1,
-                    n_timesteps=n_timesteps,
-                    horizon=diff_horizon,
-                    predict_epsilon=predict_epsilon,
+                    n_timesteps=self.training_args.n_timesteps,
+                    horizon=self.training_args.diff_horizon,
+                    predict_epsilon=self.training_args.predict_epsilon,
                 )
             else:
                 raise NotImplementedError
-        elif model_args.decoder_type=='gpt':
-            lm_head = GPTDecoder(in_features, self.window_size, use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, multi_step_action=multi_step_action, pooling=pooling, hidden_size=hidden_size)
+        elif self.model_args.decoder_type=='gpt':
+            lm_head = GPTDecoder(in_features, self.training_args.window_size, use_diff=self.model_args.use_diff,
+                                 last_action=self.model_args.last_action, fusion_mode=self.model_args.fusion_mode,
+                                 multi_step_action=self.model_args.multi_step_action, pooling=self.model_args.pooling,
+                                 hidden_size=self.model_args.hidden_size)
             self.lang_encoder.lm_head = self.action_head = lm_head
         else:
             raise NotImplementedError
 
-        if model_args.sep_lm_head:
+        if self.model_args.sep_lm_head:
             self.lm_head = self.lang_encoder.lm_head
             self.lang_encoder.lm_head = nn.Identity()
 
@@ -256,7 +271,7 @@ class BCMobileVLM(nn.Module):
             vision_x = self.vision_encoder.visual(vision_x)[1]
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
 
-        vision_x = self.perceiver(vision_x)  # reshapes to (b, T, n, d)
+        vision_x = self.adapter(vision_x)  # reshapes to (b, T, n, d)
 
         for layer in self.lang_encoder._get_decoder_layers():
             layer.condition_vis_x(vision_x)
@@ -302,7 +317,7 @@ class BCMobileVLM(nn.Module):
         vision_gripper = self._encode_vision(vision_gripper)
         vision_x = torch.cat([vision_rgb, vision_gripper], dim=3)
 
-        vision_x = self.perceiver(vision_x)  # reshapes to (b, T, n, d)
+        vision_x = self.adapter(vision_x)  # reshapes to (b, T, n, d)
 
         for layer in self.lang_encoder._get_decoder_layers():
             layer.condition_vis_x(vision_x)
@@ -324,11 +339,11 @@ class BCMobileVLM(nn.Module):
         """
         vision_rgb = self._encode_vision(vision_rgb)
         vision_gripper = self._encode_vision(vision_gripper)
-        vision_rgb = self.perceiver(vision_rgb)
+        vision_rgb = self.adapter(vision_rgb)
         if self.sep_resampler:
-            vision_gripper = self.perceiver_gripper(vision_gripper)
+            vision_gripper = self.adapter_gripper(vision_gripper)
         else:
-            vision_gripper = self.perceiver(vision_gripper)
+            vision_gripper = self.adapter(vision_gripper)
 
         vision_x = torch.cat([vision_rgb, vision_gripper], dim=2)  # reshapes to (b, T, 2*n, d)
         if self.use_state and state_tensor is not None:
@@ -355,11 +370,11 @@ class BCMobileVLM(nn.Module):
         """
         vision_rgb = self._encode_vision(vision_rgb)
         vision_gripper = self._encode_vision(vision_gripper)
-        vision_rgb = self.perceiver(vision_rgb)
+        vision_rgb = self.adapter(vision_rgb)
         if self.sep_resampler:
-            vision_gripper = self.perceiver_gripper(vision_gripper)
+            vision_gripper = self.adapter_gripper(vision_gripper)
         else:
-            vision_gripper = self.perceiver(vision_gripper)
+            vision_gripper = self.adapter(vision_gripper)
 
         vision_x = torch.cat([vision_rgb, vision_gripper], dim=0)  # reshapes to (b, T, 2*n, d)
         if self.use_state and state_tensor is not None:
@@ -385,23 +400,23 @@ class BCMobileVLM(nn.Module):
         """
         vision_rgb = self._encode_vision(vision_rgb)
         vision_gripper = self._encode_vision(vision_gripper)
-        bs = int(vision_rgb.shape[0] // self.window_size)
-        vision_rgb = vision_rgb.view(bs, self.window_size, *vision_rgb.shape[1:])
+        bs = int(vision_rgb.shape[0] // self.training_args.window_size)
+        vision_rgb = vision_rgb.view(bs, self.training_args.window_size, *vision_rgb.shape[1:])
         _, _, T, p, v_tok, dim = vision_rgb.shape[:6]
         frame_embs = repeat(self.frame_embs, 'F d -> b F T p v d', b=bs, T=T, p=p, v=v_tok)
         vision_rgb = vision_rgb + frame_embs
         vision_rgb = rearrange(vision_rgb, 'b F T p v d -> (b F) T p v d')
-        vision_rgb = self.perceiver(vision_rgb)
+        vision_rgb = self.adapter(vision_rgb)
 
-        vision_gripper = vision_gripper.view(vision_gripper.shape[0] // self.window_size, self.window_size,
+        vision_gripper = vision_gripper.view(vision_gripper.shape[0] // self.training_args.window_size, self.training_args.window_size,
                                              *vision_gripper.shape[1:])
         frame_embs = repeat(self.frame_embs, 'F d -> b F T p v d', b=bs, T=T, p=p, v=v_tok)
         vision_gripper = vision_gripper + frame_embs
         vision_gripper = rearrange(vision_gripper, 'b F T p v d -> (b F) T p v d')
         if self.sep_resampler:
-            vision_gripper = self.perceiver_gripper(vision_gripper)
+            vision_gripper = self.adapter_gripper(vision_gripper)
         else:
-            vision_gripper = self.perceiver(vision_gripper)
+            vision_gripper = self.adapter(vision_gripper)
 
         vision_x = torch.cat([vision_rgb, vision_gripper], dim=2)  # reshapes to (b, T, 2*n, d)
         if self.use_state and state_tensor is not None:
@@ -425,18 +440,18 @@ class BCMobileVLM(nn.Module):
 
         rearrange code based on https://github.com/dhansmair/flamingo-mini
         """
-        bs = int(vision_rgb.shape[0] // self.window_size)
+        bs = int(vision_rgb.shape[0] // self.training_args.window_size)
         vision_rgb = self._encode_vision(vision_rgb)
-        vision_rgb = self.perceiver(vision_rgb) # BxL, T, n, d
-        vision_rgb = vision_rgb.view(-1, self.window_size, *vision_rgb.shape[1:]) # B, L, T, n, d
+        vision_rgb = self.adapter(vision_rgb) # BxL, T, n, d
+        vision_rgb = vision_rgb.view(-1, self.training_args.window_size, *vision_rgb.shape[1:]) # B, L, T, n, d
         vision_rgb = rearrange(vision_rgb, 'b L T n d -> b T (n L) d')
 
         vision_gripper = self._encode_vision(vision_gripper)
         if self.sep_resampler:
-            vision_gripper = self.perceiver_gripper(vision_gripper)
+            vision_gripper = self.adapter_gripper(vision_gripper)
         else:
-            vision_gripper = self.perceiver(vision_gripper)
-        vision_gripper = vision_gripper.view(-1, self.window_size, *vision_gripper.shape[1:]) # B, L, T, n, d
+            vision_gripper = self.adapter(vision_gripper)
+        vision_gripper = vision_gripper.view(-1, self.training_args.window_size, *vision_gripper.shape[1:]) # B, L, T, n, d
         vision_gripper = rearrange(vision_gripper, 'b L T n d -> b T (n L) d')
 
         vision_x = torch.cat([vision_rgb, vision_gripper], dim=2)

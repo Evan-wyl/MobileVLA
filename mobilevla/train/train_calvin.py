@@ -26,22 +26,31 @@ from mobilevla.models.factory import create_model_and_transforms
 class ModelArguments:
     lang_encoder_path: Optional[str] = field(default=None)
     lang_name: Optional[str] = field(default='MobileLLaMA-1.4B-Chat')
-    vision_encoder_path: Optional[str] = field(default=None)
-    freeze_embed: Optional[bool] = field(default=False)
+
+    vision_tower: Optional[str] = field(default=None)
+    vision_tower_type: Optional[str] = field(default='clip')
+
+    sep_adapter: Optional[bool] = field(default=True)
+    mm_projector_type: Optional[str] = field(default='linear')
+
+    sep_lm_head: Optional[bool] = field(default=False)
     use_state: Optional[bool] = field(default=False)
     use_hist: Optional[bool] = field(default=True)
+    use_diff: Optional[bool] = field(default=False)
     last_action: Optional[bool] = field(default=False)
     fusion_mode: Optional[str] = field(default='')
-    sep_perceiver: Optional[bool] = field(default=True)
-    freeze_perceiver: Optional[bool] = field(default=False)
-    sep_lm_head: Optional[bool] = field(default=False)
-    unfreeze_vit: Optional[bool] = field(default=False)
-    return_feature: Optional[bool] = field(default=False)
     multi_step_action: Optional[int] = field(default=1)
     pooling: Optional[str] = field(default='max')
     residual: Optional[bool] = field(default=False)
     decoder_type: Optional[str] = field(default='lstm')
     hidden_size: Optional[int] = field(default=None)
+    state_dim: Optional[int] = field(default=15)
+    return_feature: Optional[bool] = field(default=False)
+
+    freeze_adapter: Optional[bool] = field(default=False)
+    unfreeze_vit: Optional[bool] = field(default=False)
+    freeze_embed: Optional[bool] = field(default=False)
+
     mm_vision_select_layer: Optional[int] = field(default=-1)   # default to the last layer
     mm_use_im_start_end: bool = field(default=False)
     mm_use_im_patch_token: bool = field(default=True)
@@ -66,6 +75,11 @@ class DataArguments:
 class TrainingArguments(transformers.TrainingArguments):
     window_size: Optional[int] = field(default=32)
     train_params: Optional[int] = field(default=-1)
+
+    # diffusion model params
+    n_timesteps: Optional[int] = field(default=150)
+    diff_horizon: Optional[int] = field(default=32)
+    predict_epsilon: Optional[bool] = field(default=True)
 
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
