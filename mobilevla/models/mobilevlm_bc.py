@@ -55,8 +55,9 @@ class BCMobileVLM(nn.Module):
         elif self.model_args.decoder_type == 'fc':
             if self.model_args.use_hist:
                 self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.training_args.window_size,
-                use_diff=self.model_args.use_diff, last_action=self.model_args.last_action, fusion_mode=self.model_args.fusion_mode,
-                use_state=self.model_args.use_state, return_feature=self.model_args.return_feature,
+                                                                         use_diff=self.model_args.use_diff, last_action=self.model_args.last_action,
+                                                                         fusion_mode=self.model_args.fusion_mode,
+                                                                         use_state=self.model_args.use_state, return_feature=self.model_args.return_feature,
                                                                          multi_step_action=self.model_args.multi_step_action)
             elif 'vit_concat' in self.model_args.fusion_mode:
                 self.lang_encoder.lm_head = self.action_head = FCDecoder(in_features, self.training_args.window_size,
@@ -78,7 +79,7 @@ class BCMobileVLM(nn.Module):
                 )
             else:
                 raise NotImplementedError
-        elif self.model_args.decoder_type=='gpt':
+        elif self.model_args.decoder_type == 'gpt':
             lm_head = GPTDecoder(in_features, self.training_args.window_size, use_diff=self.model_args.use_diff,
                                  last_action=self.model_args.last_action, fusion_mode=self.model_args.fusion_mode,
                                  multi_step_action=self.model_args.multi_step_action, pooling=self.model_args.pooling,

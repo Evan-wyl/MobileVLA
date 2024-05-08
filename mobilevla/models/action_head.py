@@ -5,7 +5,7 @@ import torch.nn as nn
 # from open_flamingo.src.helpers import PerceiverResampler
 from mobilevla.models.normalizer import LinearNormalizer
 from mobilevla.models.trajectory_gpt2 import get_gpt_model
-# from .unets import *
+from .unets import *
 import copy
 
 def lstm_decoder(
@@ -19,6 +19,7 @@ def lstm_decoder(
         batch_first=True,
         dropout=policy_rnn_dropout_p,
     )
+
 
 class MLPTanhHead(torch.nn.Module):
     def __init__(self, hidden_size, output_size):
@@ -37,6 +38,7 @@ class MLPTanhHead(torch.nn.Module):
     def forward(self, x):
         return self.mlp(x)
 
+
 class MLPNohHead(torch.nn.Module):
     def __init__(self, hidden_size, output_size):
         super().__init__()
@@ -52,6 +54,7 @@ class MLPNohHead(torch.nn.Module):
 
     def forward(self, x):
         return self.mlp(x)
+
 
 class MLPSigmoidHead(torch.nn.Module):
     def __init__(self, hidden_size, output_size):
@@ -69,6 +72,7 @@ class MLPSigmoidHead(torch.nn.Module):
 
     def forward(self, x):
         return self.mlp(x)
+
 
 class MLPActionHead(torch.nn.Module):
     def __init__(self, hidden_size):
@@ -510,6 +514,7 @@ class GPTDecoder(ActionDecoder):
     def get_pattern_name(self):
         return 'gpt_{}_'.format(self.hidden_size, )
 
+
 class GPTDecoderActPad(ActionDecoder):
     def __init__(
         self,
@@ -573,10 +578,10 @@ class GPTDecoderActPad(ActionDecoder):
             self.last_action = True
         self.global_latent = global_latent
         self.use_vision = use_vision
-        if self.use_vision:
-            self.vision_resampler = PerceiverResampler(dim=hidden_size)
-        if pooling == 'sampler':
-            self.global_1d_pool = PerceiverResampler(dim=hidden_size, depth=2, num_latents=global_latent)
+        # if self.use_vision:
+        #     self.vision_resampler = PerceiverResampler(dim=hidden_size)
+        # if pooling == 'sampler':
+        #     self.global_1d_pool = PerceiverResampler(dim=hidden_size, depth=2, num_latents=global_latent)
         if pooling == 'max':
             self.global_1d_pool = nn.AdaptiveMaxPool1d(1)
         else:
