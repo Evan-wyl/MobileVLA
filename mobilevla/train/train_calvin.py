@@ -7,14 +7,13 @@ import wandb
 import itertools
 import numpy as np
 import random
+import os
+import glob
 
+from collections import OrderedDict
 from transformers import get_constant_schedule_with_warmup, get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
-from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaModel
-from transformers import AutoTokenizer, BitsAndBytesConfig
 
 from huggingface_hub import hf_hub_download
-
-from mobilevlm.mobilevlm.model.mobilellama import MobileLlamaForCausalLM
 
 from train_utils import get_checkpoint, train_one_epoch_calvin, \
     train_one_epoch_calvin_diff, train_one_epoch_calvin_cotrain, train_one_epoch_calvin_two_way, \
@@ -86,15 +85,27 @@ class DataArguments:
 class TrainingArguments(transformers.TrainingArguments):
     window_size: Optional[int] = field(default=32)
     train_params: Optional[int] = field(default=-1)
+    from_scratch: Optional[bool] = field(default=False)
+
+    # wandb parameters
     report_to_wandb: Optional[bool] = field(default=False)
     wandb_project: Optional[str] = field(default=None)
     wandb_entity: Optional[str] = field(default=None)
-    run_name: Optional[str] = field(default=None)
+    run_name: Optional[str] = field(default='MobileVLA')
 
     # diffusion model params
     n_timesteps: Optional[int] = field(default=150)
     diff_horizon: Optional[int] = field(default=32)
     predict_epsilon: Optional[bool] = field(default=True)
+
+    learning_rate: Optional[float] = field(default=1e-4)
+    batch_size_calvin: Optional[int] = field(default=1)
+    train_num_samples_calvin: Optional[int] = field(default=100)
+    num_epochs: Optional[int] = field(default=1)
+    lr_scheduler: Optional[str] = field(default='constant')
+    warmup_steps: Optional[int] = field(default=5000)
+
+    resume_from_checkpoint: Optional[str] = field(default=None)
 
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
@@ -190,52 +201,50 @@ def train():
             {"params": [p for p in params_without_wd if p.requires_grad], "weight_decay": 0.0},
         ]
 
-    args.learning_rate = args.learning_rate * args.batch_size_calvin / 6  # adaptive lr
-    optimizer = torch.optim.AdamW(get_grouped_params(ddp_model), lr=args.learning_rate)
+    training_args.learning_rate = training_args.learning_rate * training_args.batch_size_calvin / 6  # adaptive lr
+    optimizer = torch.optim.AdamW(get_grouped_params(ddp_model), lr=training_args.learning_rate)
 
     total_training_steps = (
-                                   (args.train_num_samples_calvin) // (args.batch_size_calvin * args.world_size)
-                           ) * args.num_epochs
+                                   (training_args.train_num_samples_calvin) // (training_args.batch_size_calvin * args.world_size)
+                           ) * training_args.num_epochs
 
-    if args.lr_scheduler == "linear":
+    if training_args.lr_scheduler == "linear":
         lr_scheduler = get_linear_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=args.warmup_steps,
+            num_warmup_steps=training_args.warmup_steps,
             num_training_steps=total_training_steps,
         )
-    elif args.lr_scheduler == "cosine":
+    elif training_args.lr_scheduler == "cosine":
         lr_scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=args.warmup_steps,
+            num_warmup_steps=training_args.warmup_steps,
             num_training_steps=total_training_steps,
         )
-    elif args.lr_scheduler == 'cosine_restart':
+    elif training_args.lr_scheduler == 'cosine_restart':
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-7)
     else:
         lr_scheduler = get_constant_schedule_with_warmup(
-            optimizer, num_warmup_steps=args.warmup_steps
+            optimizer, num_warmup_steps=training_args.warmup_steps
         )
 
-    if os.path.exists(f"{args.run_name}") and args.resume_from_checkpoint is None:
-        ckpt_name = get_ckpt_name_pattern(args)
-        checkpoint_list = glob.glob(f"{args.run_name}/{ckpt_name}")
+    if os.path.exists(f"{training_args.run_name}") and training_args.resume_from_checkpoint is None:
+        ckpt_name = get_ckpt_name_pattern(training_args)
+        checkpoint_list = glob.glob(f"{training_args.run_name}/{ckpt_name}")
         print(ckpt_name)
         checkpoint_list = [_ for _ in checkpoint_list if "__sep" not in _ and 'iter' not in _ and 'weights' not in _]
         if len(checkpoint_list) == 0:
-            print(f"Found no checkpoints for run {args.run_name}.")
+            print(f"Found no checkpoints for run {training_args.run_name}.")
         else:
-            args.resume_from_checkpoint = sorted(
+            training_args.resume_from_checkpoint = sorted(
                 checkpoint_list, key=lambda x: int(x.split("_")[-1].split(".")[0])
             )[-1]
             print(
-                f"Found checkpoint {args.resume_from_checkpoint} for run {args.run_name}."
+                f"Found checkpoint {training_args.resume_from_checkpoint} for run {training_args.run_name}."
             )
 
     resume_from_epoch = 0
-    if args.resume_from_checkpoint is not None and args.from_scratch is False:
-        if args.rank == 0:
-            print(f"Loading checkpoint from {args.resume_from_checkpoint}")
-        checkpoint = torch.load(args.resume_from_checkpoint, map_location="cpu")
+    if training_args.resume_from_checkpoint is not None and training_args.from_scratch is False:
+        checkpoint = torch.load(training_args.resume_from_checkpoint, map_location="cpu")
 
         def filter_ckpt(checkpoint, skip_keys=[]):
             new_state_dict = OrderedDict()
@@ -250,20 +259,20 @@ def train():
             return new_state_dict
 
         ddp_model.load_state_dict(checkpoint["model_state_dict"], False)
-        if not args.real_data:
+        if not data_args.real_data:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
             resume_from_epoch = checkpoint["epoch"] + 1
 
     ddp_model.train()
 
-    if args.real_data:
+    if data_args.real_data:
         resume_from_epoch = 0
-    for epoch in range(resume_from_epoch, args.num_epochs):
+    for epoch in range(resume_from_epoch, training_args.num_epochs):
         calvin_dataset.set_epoch(epoch)
         calvin_loader = calvin_dataset.dataloader
 
-        if args.head_type == "diffusion":
+        if model.head_type == "diffusion":
             train_one_epoch_calvin_diff(
                 args=args,
                 model=ddp_model,
@@ -275,7 +284,7 @@ def train():
                 device_id=device_id,
                 wandb=wandb,
             )
-        elif args.fusion_mode == 'two_way':
+        elif model.fusion_mode == 'two_way':
             train_one_epoch_calvin_two_way(
                 args=args,
                 model=ddp_model,
@@ -287,7 +296,7 @@ def train():
                 device_id=device_id,
                 wandb=wandb,
             )
-        elif args.co_train:
+        elif data_args.co_train:
             train_one_epoch_calvin_cotrain(
                 args=args,
                 model=ddp_model,
@@ -314,30 +323,10 @@ def train():
                 wandb=wandb,
             )
 
-        if args.rank == 0:
-            if not os.path.exists(args.run_name):
-                os.makedirs(args.run_name)
-
-            checkpoint_dict = {
-                "epoch": epoch,
-                "model_state_dict": get_checkpoint(ddp_model),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "lr_scheduler_state_dict": lr_scheduler.state_dict(),
-            }
-
-            ckpt_name = get_ckpt_name(args, epoch)
-            ckpt_path = os.path.join(args.run_name, ckpt_name)
-
-            print(f"Saving checkpoint to {ckpt_path}")
-            torch.save(checkpoint_dict, ckpt_path)
-            if args.delete_previous_checkpoint:
-                if epoch > 0:
-                    os.remove(ckpt_path)
-
         ckpt_name = get_ckpt_name(args)
-        torch.save(get_checkpoint(ddp_model), f"{args.run_name}/{ckpt_name}")
-        if args.report_to_wandb and args.save_checkpoints_to_wandb:
-            wandb.save(f"{args.run_name}/{ckpt_name}")
+        torch.save(get_checkpoint(ddp_model), f"{training_args.run_name}/{ckpt_name}")
+        if training_args.report_to_wandb and training_args.save_checkpoints_to_wandb:
+            wandb.save(f"{training_args.run_name}/{ckpt_name}")
 
 
 if __name__ == '__main__':
