@@ -13,8 +13,8 @@ from huggingface_hub import hf_hub_download
 import itertools
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from robot_flamingo.data.data import get_data
-from open_flamingo.train.distributed import init_distributed_device, world_info_from_env
+from mobilevla.data.data import get_data
+from open_flamingo.open_flamingo.train.distributed import init_distributed_device, world_info_from_env
 from train_utils import get_checkpoint, train_one_epoch_calvin, train_one_epoch_calvin_diff, train_one_epoch_calvin_cotrain, train_one_epoch_calvin_two_way, \
 get_ckpt_name, get_ckpt_name_pattern
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -24,7 +24,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from robot_flamingo.models.factory import create_model_and_transforms, mpt_dict
+from mobilevla.models.factory import create_model_and_transforms, mpt_dict
 
 
 def random_seed(seed=42, rank=0):

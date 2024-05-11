@@ -35,8 +35,8 @@ from torch.nn.parallel import DistributedDataParallel
 from tqdm.auto import tqdm
 
 from calvin_env.envs.play_table_env import get_env
-from robot_flamingo.data.data import preprocess_image, preprocess_text_calvin
-from robot_flamingo.utils import world_to_tcp_frame, tcp_to_world_frame
+from mobilevla.data.data import preprocess_image, preprocess_text_calvin
+from mobilevla.utils import world_to_tcp_frame, tcp_to_world_frame
 import functools
 os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
 import pyrender

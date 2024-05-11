@@ -42,7 +42,7 @@ from omegaconf import DictConfig
 import pyhash
 import torch
 from torch.utils.data import Dataset
-from robot_flamingo.data.real_dataset_hdf5 import RealDatasetHDF5
+from mobilevla.data.real_dataset_hdf5 import RealDatasetHDF5
 
 Image.MAX_IMAGE_PIXELS = 1000000000
 MAX_NUM_TOKENS = 256

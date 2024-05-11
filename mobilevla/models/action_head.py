@@ -2,9 +2,9 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from open_flamingo.src.helpers import PerceiverResampler
-from robot_flamingo.models.normalizer import LinearNormalizer
-from robot_flamingo.models.trajectory_gpt2 import get_gpt_model
+from open_flamingo.open_flamingo.src.helpers import PerceiverResampler
+from mobilevla.models.normalizer import LinearNormalizer
+from mobilevla.models.trajectory_gpt2 import get_gpt_model
 # from .unets import *
 import copy
 

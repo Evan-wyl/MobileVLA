@@ -2,8 +2,8 @@ import torch
 from einops import rearrange, repeat
 from torch import nn
 import copy
-from open_flamingo.src.helpers import PerceiverResampler
-from robot_flamingo.models.action_head import DeterministicDecoder, DiffusionDecoder, FCDecoder, GPTDecoder
+from open_flamingo.open_flamingo.src.helpers import PerceiverResampler
+from mobilevla.models.action_head import DeterministicDecoder, DiffusionDecoder, FCDecoder, GPTDecoder
 from collections import namedtuple
 
 

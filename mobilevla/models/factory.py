@@ -2,11 +2,11 @@ from logging import debug
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 import open_clip
 from typing import Optional
-from robot_flamingo.models.flamingo_bc import BCFlamingo
-from robot_flamingo.models.flamingo_mpt import MPTFlamingo
-from open_flamingo.src.flamingo_lm import FlamingoLMMixin
-from open_flamingo.src.utils import extend_instance
-from open_flamingo.src.factory import _infer_decoder_layers_attr_name
+from mobilevla.models.flamingo_bc import BCFlamingo
+from mobilevla.models.flamingo_mpt import MPTFlamingo
+from open_flamingo.open_flamingo.src.flamingo_lm import FlamingoLMMixin
+from open_flamingo.open_flamingo.src.utils import extend_instance
+from open_flamingo.open_flamingo.src.factory import _infer_decoder_layers_attr_name
 
 mpt_dict = {
     "mpt_3b": {
