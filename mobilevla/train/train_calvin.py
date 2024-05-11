@@ -44,6 +44,7 @@ def main():
         type=str,
         help="path to tokenizer",
     )
+    parser.add_argument('--mm_projector_type', default="ldpnetv2", type=str, help='multi-modal projector type')
     parser.add_argument(
         "--cross_attn_every_n_layers",
         type=int,
@@ -335,6 +336,7 @@ def main():
         args.vision_encoder_pretrained,
         args.lm_path,
         args.tokenizer_path if args.tokenizer_path else args.lm_path,
+        mm_projector_type = args.mm_projector_type,
         cross_attn_every_n_layers=args.cross_attn_every_n_layers,
         use_gripper=args.use_gripper,
         use_state=args.use_state,

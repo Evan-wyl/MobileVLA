@@ -1,5 +1,5 @@
 from logging import debug
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, LlamaForCausalLM, LlamaTokenizer, LlamaConfig
 import open_clip
 from typing import Optional
 from mobilevla.models.mobilevlm_bc import BCMobileVLM
@@ -34,6 +34,7 @@ def create_model_and_transforms(
         clip_vision_encoder_pretrained: str,
         lang_encoder_path: str,
         tokenizer_path: str,
+        mm_projector_type: str,
         cross_attn_every_n_layers: int = 1,
         use_local_files: bool = False,
         window_size: int = 32,
@@ -71,7 +72,7 @@ def create_model_and_transforms(
     # set the vision encoder to output the visual features
     vision_encoder.visual.output_tokens = True
 
-    text_tokenizer = AutoTokenizer.from_pretrained(
+    text_tokenizer = LlamaTokenizer.from_pretrained(
         tokenizer_path, local_files_only=use_local_files
     )
     # add Flamingo special tokens to the tokenizer
@@ -84,16 +85,17 @@ def create_model_and_transforms(
         text_tokenizer.add_special_tokens({"pad_token": "<PAD>"})
     if debug:
         # Load the local checkpoint into a model instance.
-        lang_encoder = AutoModelForCausalLM.from_pretrained(lang_encoder_path, ignore_keys=["config"], trust_remote_code=True)
+        lang_encoder = LlamaForCausalLM.from_pretrained(lang_encoder_path, ignore_keys=["config"], trust_remote_code=True)
         # Set the `init_weights` parameter to `False` to prevent the model from loading the pretrained weights.
         lang_encoder.init_weights(False)
     else:
         print(lang_encoder_path)
-        lang_encoder = AutoModelForCausalLM.from_pretrained(
+        lang_encoder = LlamaForCausalLM.from_pretrained(
             lang_encoder_path, local_files_only=use_local_files, trust_remote_code=True
         )
 
     lang_encoder.resize_token_embeddings(len(text_tokenizer))
+    # lang_encoder.config = LlamaConfig.from_pretrained(lang_encoder_path)
     
     if 'llama' in llm_name:
         Model_fn = BCMobileVLM
@@ -105,6 +107,7 @@ def create_model_and_transforms(
     model = Model_fn(
         vision_encoder,
         lang_encoder,
+        mm_projector_type,
         text_tokenizer.encode("<|endofchunk|>")[-1],
         text_tokenizer.encode("<image>")[-1],
         vis_dim=open_clip.get_model_config(clip_vision_encoder_path)["vision_cfg"][
