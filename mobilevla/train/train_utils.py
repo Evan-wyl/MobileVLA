@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
-from mobilevla.utils import world_to_tcp_frame, tcp_to_world_frame
+from robot_flamingo.utils import world_to_tcp_frame, tcp_to_world_frame
 import itertools
 from einops import rearrange
 
