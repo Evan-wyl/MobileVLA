@@ -24,7 +24,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from mobilevla.models.factory import create_model_and_transforms, mpt_dict
+from mobilevla.models.factory import create_model_and_transforms
 
 
 def random_seed(seed=42, rank=0):
@@ -37,10 +37,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--vision_encoder_path", default="ViT-L-14", type=str)
     parser.add_argument("--vision_encoder_pretrained", default="openai", type=str)
-    parser.add_argument("--lm_path", default="facebook/opt-1.3b", type=str)
+    parser.add_argument("--lm_path", default="mtgv/MobileLLaMA-1.4B-Chat", type=str)
     parser.add_argument(
         "--tokenizer_path",
-        default="facebook/opt-30b",
+        default="mtgv/MobileLLaMA-1.4B-Chat",
         type=str,
         help="path to tokenizer",
     )
@@ -53,7 +53,7 @@ def main():
     parser.add_argument(
         "--run_name",
         type=str,
-        default="RobotFlamingo",
+        default="MobileVLA",
         help="used to name saving directory and wandb run",
     )
     parser.add_argument("--use_media_placement_augmentation", action="store_true")
@@ -66,7 +66,6 @@ def main():
     # Sum of gradient optimization batch size
     parser.add_argument("--batch_size_calvin", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--openflamingo_checkpoint", type=str, default="")
     parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
@@ -305,7 +304,7 @@ def main():
     
     parser.add_argument("--min_window_size", type=int, default=12)
     parser.add_argument("--max_window_size", type=int, default=24)
-    parser.add_argument("--llm_name", type=str, default='llama_9b')
+    parser.add_argument("--llm_name", type=str, default='mobilellama-1.4b')
     parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--multi_step_action", type=int, default=1, help="multiple step action prediction")
 
@@ -330,10 +329,6 @@ def main():
     print("device_id: ", device_id)
 
     random_seed(args.seed)
-    args.lm_path = mpt_dict[args.llm_name]["lang_encoder_path"]
-    args.tokenizer_path = mpt_dict[args.llm_name]["tokenizer_path"]
-    args.cross_attn_every_n_layers = mpt_dict[args.llm_name]["cross_attn_every_n_layers"]
-    args.openflamingo_checkpoint = mpt_dict[args.llm_name]["openflamingo_checkpoint"]
 
     model, image_processor, tokenizer = create_model_and_transforms(
         args.vision_encoder_path,
@@ -371,12 +366,6 @@ def main():
         no_image_patch=args.no_image_patch,
         global_latent=args.global_latent,
     )
-
-    checkpoint_path = args.openflamingo_checkpoint
-    if not args.debug and not args.no_pretrain:
-        model.load_state_dict(torch.load(checkpoint_path), strict=False)
-        if args.residual:
-            model.lang_encoder.clone_parameters()
 
     print(
         f"Flamingo model initialized with {sum(p.numel() for p in model.parameters() if p.requires_grad)} trainable parameters"
@@ -427,15 +416,15 @@ def main():
 
         def apply_decay(x):
             return (
-                "gated_cross_attn_layer" in x
-                and "ff_gate" not in x
-                and "attn_gate" not in x
-                and "norm" not in x
-                and "bias" not in x
+                    "gated_cross_attn_layer" in x
+                    and "ff_gate" not in x
+                    and "attn_gate" not in x
+                    and "norm" not in x
+                    and "bias" not in x
             )
 
         for n, p in model.named_parameters():
-            
+
             if apply_decay(n):
                 params_with_wd.append(p)
             else:

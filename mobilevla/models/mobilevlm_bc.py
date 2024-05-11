@@ -2,20 +2,20 @@ import torch
 from einops import rearrange, repeat
 from torch import nn
 import copy
-from open_flamingo.open_flamingo.src.helpers import PerceiverResampler
+from mobilevlm.mobilevlm.model.vision_projector import build_vision_projector
 from mobilevla.models.action_head import DeterministicDecoder, DiffusionDecoder, FCDecoder, GPTDecoder
 from collections import namedtuple
 
 
-class BCFlamingo(nn.Module):
+class BCMobileVLM(nn.Module):
     def __init__(
         self,
         vision_encoder: nn.Module,
         lang_encoder: nn.Module,
+        mm_projector_type : str,
         eoc_token_id: int,
         media_token_id: int,
         vis_dim: int,
-        cross_attn_every_n_layers: int = 1,
         use_media_placement_augmentation: bool = False,
         # this is the window size sampled from the episode
         window_size: int = 8,
@@ -29,7 +29,6 @@ class BCFlamingo(nn.Module):
         n_timesteps=150,
         state_dim=15,
         use_hist=False,
-        debug=False,
         predict_epsilon=True,
         pad_length=-1,
         multi_step_action=1,
@@ -42,21 +41,8 @@ class BCFlamingo(nn.Module):
         replan=-1,
         decoder_type='lstm',
         hidden_size=None,
-        fwd_pred=False,
-        fwd_pred_hand=False,
         refresh=-1
     ):
-        """
-        Args:
-            vision_encoder (nn.Module): HF CLIPModel
-            lang_encoder (nn.Module): HF causal language model
-            eoc_token_id (int): Token id for <|endofchunk|>
-            media_token_id (int): Token id for <image>
-            vis_dim (int): Dimension of the visual features.
-                Visual features are projected to match this shape along the last dimension.
-            cross_attn_every_n_layers (int, optional): How often to apply cross attention after transformer layer. Defaults to 1.
-            use_media_placement_augmentation (bool, optional): Whether to randomly assign images to the preceding or following text in training. Defaults to False.
-        """
         super().__init__()
         self.use_gripper = use_gripper
         self.use_state = use_state
@@ -69,11 +55,15 @@ class BCFlamingo(nn.Module):
         self.tcp_rel = tcp_rel
         self.act_step = multi_step_action
         print('window size: {}'.format(window_size))
+
+        self.lang_encoder = lang_encoder
         self.vision_encoder = vision_encoder
-        self.perceiver = PerceiverResampler(dim=self.vis_dim)
+        lang_encoder.config.mm_projector_type = mm_projector_type
+        lang_encoder.config.mm_hidden_size = vision_encoder.hidden_size
+        self.perceiver = build_vision_projector(lang_encoder.config)
+
         self.sep_resampler = sep_resampler
         self.use_hist = use_hist
-        self.lang_encoder = lang_encoder
         self.pad_length = pad_length
         self.replan = replan
         if self.replan != -1:
@@ -88,26 +78,8 @@ class BCFlamingo(nn.Module):
         
         self.residual = residual
 
-        if not debug:
-            if 'llama' in llm:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    use_media_placement_augmentation=self.use_media_placement_augmentation,
-                    residual=residual,
-                )
-            else:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    lang_hidden_size=self.lang_dim,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    gradient_checkpointing=False,
-                )
-
         if sep_resampler:
-            self.perceiver_gripper = PerceiverResampler(dim=self.vis_dim)
+            self.perceiver_gripper = build_vision_projector(lang_encoder.config)
             self.perceiver_gripper.load_state_dict(copy.deepcopy(self.perceiver.state_dict()))
         if use_state:
             self.state_fc = nn.Linear(state_dim, self.vis_dim)
@@ -172,26 +144,6 @@ class BCFlamingo(nn.Module):
         return_feature = False,
         policy_mask=None
     ):
-        """
-        Forward pass of Flamingo.
-
-        Args:
-            vision_x (torch.Tensor): Vision input
-                shape (B, T_img, F, C, H, W) with F=1
-            lang_x (torch.Tensor): Language input ids
-                shape (B, T_txt)
-            attention_mask (torch.Tensor, optional): Attention mask. Defaults to None.
-            labels (torch.Tensor, optional): Labels. Defaults to None.
-            clear_conditioned_layers: if True, clear the conditioned layers
-                once the foward pass is completed. Set this to false if the
-                same set of images will be reused in another subsequent
-                forward pass.
-            past_key_values: pre-computed values to pass to language model.
-                See past_key_values documentation in Hugging Face
-                CausalLM models.
-            use_cache: whether to use cached key values. See use_cache
-                documentation in Hugging Face CausalLM models.
-        """
         raw_rgb = vision_x.clone()
         raw_gripper = vision_gripper.clone()
         assert (

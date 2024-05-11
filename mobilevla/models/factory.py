@@ -2,51 +2,8 @@ from logging import debug
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 import open_clip
 from typing import Optional
-from mobilevla.models.flamingo_bc import BCFlamingo
+from mobilevla.models.mobilevlm_bc import BCMobileVLM
 from mobilevla.models.flamingo_mpt import MPTFlamingo
-from open_flamingo.open_flamingo.src.flamingo_lm import FlamingoLMMixin
-from open_flamingo.open_flamingo.src.utils import extend_instance
-from open_flamingo.open_flamingo.src.factory import _infer_decoder_layers_attr_name
-
-mpt_dict = {
-    "mpt_3b": {
-        "lang_encoder_path": "path_to/mpt-1b-redpajama-200b", 
-        "tokenizer_path": "path_to/mpt-1b-redpajama-200b", 
-        "cross_attn_every_n_layers": 1,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-3B-vitl-mpt1b/checkpoint.pt"
-    }, 
-    "mpt_dolly_3b": {
-        "lang_encoder_path": "path_to/mpt-1b-redpajama-200b-dolly", 
-        "tokenizer_path": "path_to/mpt-1b-redpajama-200b-dolly", 
-        "cross_attn_every_n_layers": 1,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-3B-vitl-mpt1b-langinstruct/checkpoint.pt"
-    },
-    "mpt_4b": {
-        "lang_encoder_path": "path_to/RedPajama-INCITE-Instruct-3B-v1", 
-        "tokenizer_path": "path_to/RedPajama-INCITE-Instruct-3B-v1", 
-        "cross_attn_every_n_layers": 2,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-4B-vitl-rpj3b-langinstruct/checkpoint.pt"
-    },
-    "mpt_base_4b": {
-        "lang_encoder_path": "path_to/RedPajama-INCITE-Base-3B-v1", 
-        "tokenizer_path": "path_to/RedPajama-INCITE-Base-3B-v1", 
-        "cross_attn_every_n_layers": 2,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-4B-vitl-rpj3b/checkpoint.pt"
-    },
-    "mpt_9b": {
-        "lang_encoder_path": "path_to/mpt-7b", 
-        "tokenizer_path": "path_to/mpt-7b", 
-        "cross_attn_every_n_layers": 4,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-9B-vitl-mpt7b/checkpoint.pt"
-    },
-    "llama_9b": {
-        "lang_encoder_path": "path_to/llama-7b-hf-jxu124", 
-        "tokenizer_path": "path_to/llama-7b-hf-jxu124", 
-        "cross_attn_every_n_layers": 4,
-        "openflamingo_checkpoint": "path_to/OpenFlamingo-9B/checkpoint.pt"
-    }
-}
-
 
 
 def get_transforms(
@@ -73,60 +30,41 @@ def get_transforms(
 
 
 def create_model_and_transforms(
-    clip_vision_encoder_path: str,
-    clip_vision_encoder_pretrained: str,
-    lang_encoder_path: str,
-    tokenizer_path: str,
-    cross_attn_every_n_layers: int = 1,
-    use_local_files: bool = False,
-    decoder_layers_attr_name: str = None,
-    # this is the window size sampled from the episode
-    window_size: int = 32,
-    freeze_embed: bool = False,
-    train_params = -1,
-    use_gripper=False,
-    use_state=False,
-    last_action=False,
-    fusion_mode='',
-    pad_length=-1,
-    debug=False,
-    sep_resampler=False,
-    sep_lm_head=False,
-    unfreeze_vit=False,
-    return_feature=False,
-    multi_step_action=1,
-    llm_name='llama_9b',
-    pooling='max',
-    residual=False,
-    tcp_rel=False,
-    replan=-1,
-    decoder_type='lstm',
-    hidden_size=None,
-    freeze_sampler=False,
-    fwd_pred=False, 
-    fwd_pred_hand=False,
-    no_image_patch=False,
-    global_latent=1,
-    refresh=-1,
-    **flamingo_kwargs,
+        clip_vision_encoder_path: str,
+        clip_vision_encoder_pretrained: str,
+        lang_encoder_path: str,
+        tokenizer_path: str,
+        cross_attn_every_n_layers: int = 1,
+        use_local_files: bool = False,
+        window_size: int = 32,
+        freeze_embed: bool = False,
+        train_params = -1,
+        use_gripper=False,
+        use_state=False,
+        last_action=False,
+        fusion_mode='',
+        pad_length=-1,
+        debug=False,
+        sep_resampler=False,
+        sep_lm_head=False,
+        unfreeze_vit=False,
+        return_feature=False,
+        multi_step_action=1,
+        llm_name='llama_9b',
+        pooling='max',
+        residual=False,
+        tcp_rel=False,
+        replan=-1,
+        decoder_type='lstm',
+        hidden_size=None,
+        freeze_sampler=False,
+        fwd_pred=False,
+        fwd_pred_hand=False,
+        no_image_patch=False,
+        global_latent=1,
+        refresh=-1,
+        **flamingo_kwargs,
 ):
-    """
-    Initialize a Flamingo model from a pretrained vision encoder and language encoder.
-    Appends special tokens to the tokenizer and freezes backbones.
-
-    Args:
-        clip_vision_encoder_path (str): path to pretrained clip model (e.g. "ViT-B-32")
-        clip_vision_encoder_pretrained (str): name of pretraining dataset for clip model (e.g. "laion2b_s32b_b79k")
-        lang_encoder_path (str): path to pretrained language encoder
-        tokenizer_path (str): path to pretrained tokenizer
-        cross_attn_every_n_layers (int, optional): determines how often to add a cross-attention layer. Defaults to 1.
-        use_local_files (bool, optional): whether to use local files. Defaults to False.
-        decoder_layers_attr_name (str, optional): name of the decoder layers attribute. Defaults to None.
-    Returns:
-        Flamingo: Flamingo model from pretrained vision and language encoders
-        Image processor: Pipeline to preprocess input images
-        Tokenizer: A tokenizer for the language model
-    """
     vision_encoder, _, image_processor = open_clip.create_model_and_transforms(
         clip_vision_encoder_path, pretrained=clip_vision_encoder_pretrained
     )
@@ -154,43 +92,11 @@ def create_model_and_transforms(
         lang_encoder = AutoModelForCausalLM.from_pretrained(
             lang_encoder_path, local_files_only=use_local_files, trust_remote_code=True
         )
-        # print(lang_encoder_path)
-        # if llm_name == 'llama':
-        #     lang_encoder = AutoModelForCausalLM.from_pretrained(
-        #     lang_encoder_path, local_files_only=use_local_files
-        # )
-        # else:
-        #     # name = 'mosaicml/mpt-7b'
-        #     config = {
-        #         "model_type": "auto",
-        #         "add_lm_head": True,
-        #     }
-        #     lang_encoder = AutoModelForCausalLM.from_pretrained(
-        #         lang_encoder_path, local_files_only=use_local_files
-        #     )
-    # hacks for MPT-1B, which doesn't have a get_input_embeddings method
-    if "mpt-1b-redpajama-200b" in lang_encoder_path:
 
-        class EmbeddingFnMixin:
-            def get_input_embeddings(self):
-                return self.transformer.wte
-
-            def set_input_embeddings(self, new_embeddings):
-                self.transformer.wte = new_embeddings
-        extend_instance(lang_encoder, EmbeddingFnMixin)
-    
-    extend_instance(lang_encoder, FlamingoLMMixin)
-    
-    if decoder_layers_attr_name is None:
-        decoder_layers_attr_name = _infer_decoder_layers_attr_name(lang_encoder)
-    lang_encoder.set_decoder_layers_attr_name(decoder_layers_attr_name)
-    # print(lang_encoder.base_model_prefix)
-    # print(getattr(lang_encoder, lang_encoder.base_model_prefix, lang_encoder))
-    # print(lang_encoder)
     lang_encoder.resize_token_embeddings(len(text_tokenizer))
     
     if 'llama' in llm_name:
-        Model_fn = BCFlamingo
+        Model_fn = BCMobileVLM
     elif 'mpt' in llm_name:
         Model_fn = MPTFlamingo
     else:
@@ -234,8 +140,6 @@ def create_model_and_transforms(
     model.requires_grad_(False)
     assert sum(p.numel() for p in model.parameters() if p.requires_grad) == 0
 
-    # Unfreeze perceiver, gated_cross_attn_layers, and LM input embeddings
-    # model.perceiver.requires_grad_(True)
     if train_params == -1:
         model.lang_encoder.gated_cross_attn_layers.requires_grad_(True)
         model.perceiver.requires_grad_(True)
