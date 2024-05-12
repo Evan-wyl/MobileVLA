@@ -18,7 +18,7 @@ source /mnt/bn/robotics/resources/anaconda3_arnold/bin/activate calvin_mpt
 #python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2  --master_port=6042 robot_flamingo/train/train_calvin.py \
 torchrun --nnodes=1 --nproc_per_node=8 --master_port=6042 mobilevla/train/train_calvin.py \
     --report_to_wandb \
-    --llm_name mpt_dolly_3b \
+    --llm_name mobilellama-1.4b \
     --use_gripper \
     --fusion_mode post \
     --gripper_pad 4 \
@@ -30,6 +30,7 @@ torchrun --nnodes=1 --nproc_per_node=8 --master_port=6042 mobilevla/train/train_
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ldpnetv2 \
     --cross_attn_every_n_layers 4 \
     --dataset_resampled \
     --loss_multiplier_calvin 1.0 \

@@ -258,27 +258,12 @@ def main():
         action="store_true"
     )
     parser.add_argument(
-        "--fwd_pred",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--fwd_pred_hand",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
         "--no_pretrain",
         default=False,
         action="store_true"
     )
     parser.add_argument(
         "--real_data",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--no_image_patch",
         default=False,
         action="store_true"
     )
@@ -291,7 +276,6 @@ def main():
     parser.add_argument("--batch_size_vl", type=int, default=20)
     parser.add_argument("--vl_task_weights", type=float, default=0.005)
 
-    parser.add_argument("--global_latent", type=int, default=1)
     parser.add_argument("--save_every_iter", type=int, default=-1)
     # For GPT decoder
     parser.add_argument("--hidden_size", type=int, default=768)
@@ -357,10 +341,6 @@ def main():
         decoder_type=args.decoder_type,
         hidden_size=args.hidden_size,
         freeze_sampler=args.freeze_sampler,
-        fwd_pred=args.fwd_pred,
-        fwd_pred_hand=args.fwd_pred_hand,
-        no_image_patch=args.no_image_patch,
-        global_latent=args.global_latent,
     )
 
     print(

@@ -16,6 +16,7 @@ class BCMobileVLM(nn.Module):
         eoc_token_id: int,
         media_token_id: int,
         vis_dim: int,
+        cross_attn_every_n_layers : int = 1,
         use_media_placement_augmentation: bool = False,
         # this is the window size sampled from the episode
         window_size: int = 8,
@@ -29,6 +30,7 @@ class BCMobileVLM(nn.Module):
         n_timesteps=150,
         state_dim=15,
         use_hist=False,
+        debug=False,
         predict_epsilon=True,
         pad_length=-1,
         multi_step_action=1,
@@ -77,6 +79,24 @@ class BCMobileVLM(nn.Module):
         # print(self.vis_dim, self.lang_dim)
         
         self.residual = residual
+
+        if not debug:
+            if 'llama' in llm:
+                self.lang_encoder.init_flamingo(
+                    media_token_id=media_token_id,
+                    vis_hidden_size=self.vis_dim,
+                    cross_attn_every_n_layers=cross_attn_every_n_layers,
+                    use_media_placement_augmentation=self.use_media_placement_augmentation,
+                    residual=residual,
+                )
+            else:
+                self.lang_encoder.init_flamingo(
+                    media_token_id=media_token_id,
+                    lang_hidden_size=self.lang_dim,
+                    vis_hidden_size=self.vis_dim,
+                    cross_attn_every_n_layers=cross_attn_every_n_layers,
+                    gradient_checkpointing=False,
+                )
 
         if sep_resampler:
             self.perceiver_gripper = build_vision_projector(lang_encoder.config)

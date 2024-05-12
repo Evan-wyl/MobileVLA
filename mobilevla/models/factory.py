@@ -3,7 +3,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, LlamaF
 import open_clip
 from typing import Optional
 from mobilevla.models.mobilevlm_bc import BCMobileVLM
-from mobilevla.models.flamingo_mpt import MPTFlamingo
 
 
 def get_transforms(
@@ -59,10 +58,6 @@ def create_model_and_transforms(
         decoder_type='lstm',
         hidden_size=None,
         freeze_sampler=False,
-        fwd_pred=False,
-        fwd_pred_hand=False,
-        no_image_patch=False,
-        global_latent=1,
         refresh=-1,
         **flamingo_kwargs,
 ):
@@ -99,8 +94,6 @@ def create_model_and_transforms(
     
     if 'llama' in llm_name:
         Model_fn = BCMobileVLM
-    elif 'mpt' in llm_name:
-        Model_fn = MPTFlamingo
     else:
         raise NotImplementedError
     
@@ -116,14 +109,14 @@ def create_model_and_transforms(
         cross_attn_every_n_layers=cross_attn_every_n_layers,
         window_size=window_size,
         use_gripper=use_gripper,
-        use_state=use_state,
         fusion_mode=fusion_mode,
+        sep_resampler=sep_resampler,
+        use_state=use_state,
         last_action=last_action,
         pad_length=pad_length,
-        sep_resampler=sep_resampler,
+        multi_step_action=multi_step_action,
         sep_lm_head=sep_lm_head,
         return_feature=return_feature,
-        multi_step_action=multi_step_action,
         llm=llm_name,
         pooling=pooling,
         residual=residual,
@@ -132,10 +125,6 @@ def create_model_and_transforms(
         decoder_type=decoder_type,
         hidden_size=hidden_size,
         refresh=refresh,
-        fwd_pred=fwd_pred,
-        fwd_pred_hand=fwd_pred_hand,
-        no_image_patch=no_image_patch,
-        global_latent=global_latent,
         **flamingo_kwargs,
     )
 
