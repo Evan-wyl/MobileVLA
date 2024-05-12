@@ -62,7 +62,10 @@ class BCMobileVLM(nn.Module):
         self.vision_encoder = vision_encoder
         lang_encoder.config.mm_projector_type = mm_projector_type
         lang_encoder.config.mm_hidden_size = vision_encoder.hidden_size
-        self.perceiver = build_vision_projector(lang_encoder.config)
+        if 'ldpnet' in mm_projector_type:
+            self.perceiver = build_vision_projector(lang_encoder.config)
+        else:
+            raise NotImplementedError
 
         self.sep_resampler = sep_resampler
         self.use_hist = use_hist
@@ -99,7 +102,10 @@ class BCMobileVLM(nn.Module):
                 )
 
         if sep_resampler:
-            self.perceiver_gripper = build_vision_projector(lang_encoder.config)
+            if 'ldpnet' in mm_projector_type:
+                self.perceiver_gripper = build_vision_projector(lang_encoder.config)
+            else:
+                raise NotImplementedError
             self.perceiver_gripper.load_state_dict(copy.deepcopy(self.perceiver.state_dict()))
         if use_state:
             self.state_fc = nn.Linear(state_dim, self.vis_dim)

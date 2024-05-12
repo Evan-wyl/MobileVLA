@@ -21,6 +21,8 @@ calvin_conf_path="calvin/calvin_models/conf"
 lm_path=''
 # tokenizer path
 tokenizer_path=''
+#projector type
+mm_projector_type='ldpnetv2'
 
 evaluate_from_checkpoint=$1
 log_file=$2
@@ -44,6 +46,7 @@ torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/e
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \
@@ -61,6 +64,7 @@ torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6099 mobilevla/e
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \
@@ -77,6 +81,7 @@ torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/e
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \

@@ -61,12 +61,9 @@ def main():
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--window_size", type=int, default=32)
-    parser.add_argument(
-        "--logging_steps", type=int, default=100, help="log loss every n steps"
-    )
+
     # Sum of gradient optimization batch size
     parser.add_argument("--batch_size_calvin", type=int, default=1)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
@@ -91,44 +88,17 @@ def main():
         type=str,
         help="path to calvin_dataset",
     )
-    parser.add_argument("--loss_multiplier_calvin", type=float, default=1.0)
+
     parser.add_argument("--warmup_steps", default=5000, type=int)
-    parser.add_argument("--local-rank", default=0, type=int)
     parser.add_argument("--weight_decay", default=0.1, type=float)
-    # hot fix for torch.distributed.launch
-    # parser.add_argument("--local-rank", type=int, default=1)
     parser.add_argument(
         "--precision",
         choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"],
         default="fp32",
         help="Floating point precision.",
     )
-    # data args
-    parser.add_argument("--workers", type=int, default=1)
+
     parser.add_argument("--train_num_samples_calvin", type=int, default=100)
-    parser.add_argument("--dataset_resampled", action="store_true")
-    # distributed training args
-    parser.add_argument(
-        "--dist-url",
-        default="env://",
-        type=str,
-        help="url used to set up distributed training",
-    )
-    parser.add_argument(
-        "--dist-backend", default="nccl", type=str, help="distributed backend"
-    )
-    parser.add_argument(
-        "--horovod",
-        default=False,
-        action="store_true",
-        help="Use horovod for distributed training.",
-    )
-    parser.add_argument(
-        "--no-set-device-rank",
-        default=False,
-        action="store_true",
-        help="Don't set device index from local rank (when CUDA_VISIBLE_DEVICES restricted to one per proc).",
-    )
     # wandb args
     parser.add_argument("--report_to_wandb", default=False, action="store_true")
     parser.add_argument(
@@ -169,8 +139,7 @@ def main():
         type=str,
         help="pre or post to fusion multi vision info",
     )
-    parser.add_argument("--hist_window", type=int, default=1)  # input history window size for the model
-    # history window size when evaluating, for FC head equals to hist_window, for LSTM head means refresh frequency
+
     parser.add_argument("--eval_hist_size", type=int, default=-1)
     parser.add_argument(
         "--sep_resampler",
@@ -179,7 +148,6 @@ def main():
         help="whether use separate resamplers for third party and gripper camera",
     )
     parser.add_argument("--train_params", type=int, default=-1)
-    parser.add_argument('--gripper_pad', type=int, default=-1)
     parser.add_argument('--n_timesteps', type=int, default=150, help="diffusion time steps")
     parser.add_argument(
         "--predict_epsilon",
@@ -227,11 +195,7 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--text_aug",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--residual",
         default=False,
@@ -242,26 +206,13 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--dif_ws",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--partial_data",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--freeze_sampler",
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--no_pretrain",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--real_data",
         default=False,
@@ -273,16 +224,10 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument("--batch_size_vl", type=int, default=20)
-    parser.add_argument("--vl_task_weights", type=float, default=0.005)
 
-    parser.add_argument("--save_every_iter", type=int, default=-1)
     # For GPT decoder
     parser.add_argument("--hidden_size", type=int, default=768)
     parser.add_argument("--decoder_type", type=str, default='lstm')
-    
-    parser.add_argument("--min_window_size", type=int, default=12)
-    parser.add_argument("--max_window_size", type=int, default=24)
     parser.add_argument("--llm_name", type=str, default='mobilellama-1.4b')
     parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--multi_step_action", type=int, default=1, help="multiple step action prediction")

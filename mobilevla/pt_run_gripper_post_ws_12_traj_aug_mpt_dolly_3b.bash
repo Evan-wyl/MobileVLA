@@ -9,8 +9,8 @@ calvin_dataset_path='path/to/calvin_data/task_ABCD_D'
 lm_path='path/to/MobileLLaMA-1.4B-Chat'
 # tokenizer path
 tokenizer_path='path/to/MobileLLaMA-1.4B-Chat'
-# openflamingo ckpt path
-#openflamingo_checkpoint='path/to/OpenFlamingo-3B-vitl-mpt-1b-dolly/checkpoint.pt'
+#projector type
+mm_projector_type='ldpnetv2'
 
 subfix=`date "+%Y%m%d-%H%M"`
 log_file="logs/training_"${subfix}".log"
@@ -30,7 +30,7 @@ torchrun --nnodes=1 --nproc_per_node=8 --master_port=6042 mobilevla/train/train_
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
-    --mm_projector_type ldpnetv2 \
+    --mm_projector_type ${mm_projector_type} \
     --cross_attn_every_n_layers 4 \
     --dataset_resampled \
     --loss_multiplier_calvin 1.0 \
