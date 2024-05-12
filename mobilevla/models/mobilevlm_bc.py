@@ -16,6 +16,7 @@ class BCMobileVLM(nn.Module):
         eoc_token_id: int,
         media_token_id: int,
         vis_dim: int,
+        cross_attn_every_n_layers : int = 1,
         use_media_placement_augmentation: bool = False,
         # this is the window size sampled from the episode
         window_size: int = 8,
@@ -27,21 +28,22 @@ class BCMobileVLM(nn.Module):
         diff_horizon=32,
         last_action=False,
         n_timesteps=150,
-        state_dim=15,
         use_hist=False,
         predict_epsilon=True,
-        pad_length=-1,
         multi_step_action=1,
         sep_lm_head=False,
-        return_feature = False,
-        llm='llama_9b',
+        llm='mobilellama-1.4b',
         pooling='max',
         residual=False,
         tcp_rel=False,
-        replan=-1,
         decoder_type='lstm',
         hidden_size=None,
-        refresh=-1
+        pad_length=-1,
+        return_feature=False,
+        replan=-1,
+        refresh=-1,
+        state_dim=15,
+        debug=False,
     ):
         super().__init__()
         self.use_gripper = use_gripper
@@ -60,7 +62,10 @@ class BCMobileVLM(nn.Module):
         self.vision_encoder = vision_encoder
         lang_encoder.config.mm_projector_type = mm_projector_type
         lang_encoder.config.mm_hidden_size = vision_encoder.hidden_size
-        self.perceiver = build_vision_projector(lang_encoder.config)
+        if 'ldpnet' in mm_projector_type:
+            self.perceiver = build_vision_projector(lang_encoder.config)
+        else:
+            raise NotImplementedError
 
         self.sep_resampler = sep_resampler
         self.use_hist = use_hist
@@ -78,8 +83,29 @@ class BCMobileVLM(nn.Module):
         
         self.residual = residual
 
+        if not debug:
+            if 'llama' in llm:
+                self.lang_encoder.init_flamingo(
+                    media_token_id=media_token_id,
+                    vis_hidden_size=self.vis_dim,
+                    cross_attn_every_n_layers=cross_attn_every_n_layers,
+                    use_media_placement_augmentation=self.use_media_placement_augmentation,
+                    residual=residual,
+                )
+            else:
+                self.lang_encoder.init_flamingo(
+                    media_token_id=media_token_id,
+                    lang_hidden_size=self.lang_dim,
+                    vis_hidden_size=self.vis_dim,
+                    cross_attn_every_n_layers=cross_attn_every_n_layers,
+                    gradient_checkpointing=False,
+                )
+
         if sep_resampler:
-            self.perceiver_gripper = build_vision_projector(lang_encoder.config)
+            if 'ldpnet' in mm_projector_type:
+                self.perceiver_gripper = build_vision_projector(lang_encoder.config)
+            else:
+                raise NotImplementedError
             self.perceiver_gripper.load_state_dict(copy.deepcopy(self.perceiver.state_dict()))
         if use_state:
             self.state_fc = nn.Linear(state_dim, self.vis_dim)
@@ -118,7 +144,7 @@ class BCMobileVLM(nn.Module):
                 )
             else:
                 raise NotImplementedError
-        elif decoder_type=='gpt':
+        elif decoder_type == 'gpt':
             lm_head = GPTDecoder(in_features, self.window_size, use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, multi_step_action=multi_step_action, pooling=pooling, hidden_size=hidden_size)
             self.lang_encoder.lm_head = self.action_head = lm_head
         else:

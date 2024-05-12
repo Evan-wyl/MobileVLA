@@ -3,7 +3,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, LlamaF
 import open_clip
 from typing import Optional
 from mobilevla.models.mobilevlm_bc import BCMobileVLM
-from mobilevla.models.flamingo_mpt import MPTFlamingo
 
 
 def get_transforms(
@@ -36,35 +35,36 @@ def create_model_and_transforms(
         tokenizer_path: str,
         mm_projector_type: str,
         cross_attn_every_n_layers: int = 1,
-        use_local_files: bool = False,
-        window_size: int = 32,
-        freeze_embed: bool = False,
-        train_params = -1,
+        use_media_placement_augmentation=False,
+        window_size: int = 8,
         use_gripper=False,
-        use_state=False,
-        last_action=False,
         fusion_mode='',
-        pad_length=-1,
-        debug=False,
         sep_resampler=False,
-        sep_lm_head=False,
-        unfreeze_vit=False,
-        return_feature=False,
+        use_state=False,
+        use_diff=False,
+        diff_horizon=32,
+        last_action=False,
+        n_timesteps=150,
+        use_hist=False,
+        predict_epsilon=True,
         multi_step_action=1,
-        llm_name='llama_9b',
+        sep_lm_head=False,
+        llm_name='mobilellama-1.4bb',
         pooling='max',
         residual=False,
         tcp_rel=False,
-        replan=-1,
         decoder_type='lstm',
         hidden_size=None,
-        freeze_sampler=False,
-        fwd_pred=False,
-        fwd_pred_hand=False,
-        no_image_patch=False,
-        global_latent=1,
+        debug=False,
+        pad_length=-1,
+        return_feature=False,
+        replan=-1,
         refresh=-1,
-        **flamingo_kwargs,
+        freeze_embed: bool = False,
+        train_params = -1,
+        unfreeze_vit=False,
+        freeze_sampler=False,
+        use_local_files: bool = False,
 ):
     vision_encoder, _, image_processor = open_clip.create_model_and_transforms(
         clip_vision_encoder_path, pretrained=clip_vision_encoder_pretrained
@@ -99,8 +99,6 @@ def create_model_and_transforms(
     
     if 'llama' in llm_name:
         Model_fn = BCMobileVLM
-    elif 'mpt' in llm_name:
-        Model_fn = MPTFlamingo
     else:
         raise NotImplementedError
     
@@ -114,29 +112,30 @@ def create_model_and_transforms(
             "width"
         ],
         cross_attn_every_n_layers=cross_attn_every_n_layers,
+        use_media_placement_augmentation=use_media_placement_augmentation,
         window_size=window_size,
         use_gripper=use_gripper,
-        use_state=use_state,
         fusion_mode=fusion_mode,
-        last_action=last_action,
-        pad_length=pad_length,
         sep_resampler=sep_resampler,
-        sep_lm_head=sep_lm_head,
-        return_feature=return_feature,
+        use_state=use_state,
+        use_diff=use_diff,
+        diff_horizon=diff_horizon,
+        last_action=last_action,
+        n_timesteps=n_timesteps,
+        use_hist=use_hist,
+        predict_epsilon=predict_epsilon,
         multi_step_action=multi_step_action,
+        sep_lm_head=sep_lm_head,
         llm=llm_name,
         pooling=pooling,
         residual=residual,
         tcp_rel=tcp_rel,
-        replan=replan,
         decoder_type=decoder_type,
         hidden_size=hidden_size,
+        pad_length=pad_length,
+        return_feature=return_feature,
+        replan=replan,
         refresh=refresh,
-        fwd_pred=fwd_pred,
-        fwd_pred_hand=fwd_pred_hand,
-        no_image_patch=no_image_patch,
-        global_latent=global_latent,
-        **flamingo_kwargs,
     )
 
     # Freeze all parameters

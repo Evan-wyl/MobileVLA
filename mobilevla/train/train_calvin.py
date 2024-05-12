@@ -54,19 +54,16 @@ def main():
     parser.add_argument(
         "--run_name",
         type=str,
-        default="MobileVLA",
+        default="MobileVLA-LSTM",
         help="used to name saving directory and wandb run",
     )
-    parser.add_argument("--use_media_placement_augmentation", action="store_true")
-    parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--use_media_placement_augmentation", default=False, action="store_true")
+    parser.add_argument("--offline", default=False, action="store_true")
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--window_size", type=int, default=32)
-    parser.add_argument(
-        "--logging_steps", type=int, default=100, help="log loss every n steps"
-    )
+
     # Sum of gradient optimization batch size
     parser.add_argument("--batch_size_calvin", type=int, default=1)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
@@ -91,52 +88,27 @@ def main():
         type=str,
         help="path to calvin_dataset",
     )
-    parser.add_argument("--loss_multiplier_calvin", type=float, default=1.0)
+
     parser.add_argument("--warmup_steps", default=5000, type=int)
-    parser.add_argument("--local-rank", default=0, type=int)
     parser.add_argument("--weight_decay", default=0.1, type=float)
-    # hot fix for torch.distributed.launch
-    # parser.add_argument("--local-rank", type=int, default=1)
     parser.add_argument(
         "--precision",
         choices=["amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"],
         default="fp32",
         help="Floating point precision.",
     )
-    # data args
-    parser.add_argument("--workers", type=int, default=1)
+
     parser.add_argument("--train_num_samples_calvin", type=int, default=100)
-    parser.add_argument("--dataset_resampled", action="store_true")
-    # distributed training args
-    parser.add_argument(
-        "--dist-url",
-        default="env://",
-        type=str,
-        help="url used to set up distributed training",
-    )
-    parser.add_argument(
-        "--dist-backend", default="nccl", type=str, help="distributed backend"
-    )
-    parser.add_argument(
-        "--horovod",
-        default=False,
-        action="store_true",
-        help="Use horovod for distributed training.",
-    )
-    parser.add_argument(
-        "--no-set-device-rank",
-        default=False,
-        action="store_true",
-        help="Don't set device index from local rank (when CUDA_VISIBLE_DEVICES restricted to one per proc).",
-    )
     # wandb args
     parser.add_argument("--report_to_wandb", default=False, action="store_true")
     parser.add_argument(
         "--wandb_project",
+        default='MobileVLA',
         type=str,
     )
     parser.add_argument(
         "--wandb_entity",
+        default='wandb.ai/MobileVLAs',
         type=str,
     )
     parser.add_argument(
@@ -169,8 +141,7 @@ def main():
         type=str,
         help="pre or post to fusion multi vision info",
     )
-    parser.add_argument("--hist_window", type=int, default=1)  # input history window size for the model
-    # history window size when evaluating, for FC head equals to hist_window, for LSTM head means refresh frequency
+
     parser.add_argument("--eval_hist_size", type=int, default=-1)
     parser.add_argument(
         "--sep_resampler",
@@ -179,8 +150,6 @@ def main():
         help="whether use separate resamplers for third party and gripper camera",
     )
     parser.add_argument("--train_params", type=int, default=-1)
-    parser.add_argument('--rgb_pad', type=int, default=-1)
-    parser.add_argument('--gripper_pad', type=int, default=-1)
     parser.add_argument('--n_timesteps', type=int, default=150, help="diffusion time steps")
     parser.add_argument(
         "--predict_epsilon",
@@ -209,11 +178,6 @@ def main():
         action="store_true"
     )
     parser.add_argument(
-        "--traj_cons",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
         "--debug",
         default=False,
         action="store_true"
@@ -233,11 +197,7 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--text_aug",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--residual",
         default=False,
@@ -248,43 +208,15 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--dif_ws",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--partial_data",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--freeze_sampler",
         default=False,
         action="store_true"
     )
-    parser.add_argument(
-        "--fwd_pred",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--fwd_pred_hand",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--no_pretrain",
-        default=False,
-        action="store_true"
-    )
+
     parser.add_argument(
         "--real_data",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--no_image_patch",
         default=False,
         action="store_true"
     )
@@ -294,20 +226,14 @@ def main():
         default=False,
         action="store_true"
     )
-    parser.add_argument("--batch_size_vl", type=int, default=20)
-    parser.add_argument("--vl_task_weights", type=float, default=0.005)
 
-    parser.add_argument("--global_latent", type=int, default=1)
-    parser.add_argument("--save_every_iter", type=int, default=-1)
     # For GPT decoder
     parser.add_argument("--hidden_size", type=int, default=768)
     parser.add_argument("--decoder_type", type=str, default='lstm')
-    
-    parser.add_argument("--min_window_size", type=int, default=12)
-    parser.add_argument("--max_window_size", type=int, default=24)
     parser.add_argument("--llm_name", type=str, default='mobilellama-1.4b')
     parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--multi_step_action", type=int, default=1, help="multiple step action prediction")
+    parser.add_argument('--co_train', type=bool, default=False, action='store_true', help='whether top co-training')
 
     args = parser.parse_args()
     
@@ -338,35 +264,32 @@ def main():
         args.tokenizer_path if args.tokenizer_path else args.lm_path,
         mm_projector_type = args.mm_projector_type,
         cross_attn_every_n_layers=args.cross_attn_every_n_layers,
-        use_gripper=args.use_gripper,
-        use_state=args.use_state,
-        use_hist=args.use_hist,
-        fusion_mode=args.fusion_mode,
-        use_local_files=args.offline,
         use_media_placement_augmentation=args.use_media_placement_augmentation,
         window_size=args.eval_hist_size,
-        freeze_embed=args.freeze_embed,
-        train_params=args.train_params,
+        use_gripper=args.use_gripper,
+        fusion_mode=args.fusion_mode,
         sep_resampler=args.sep_resampler,
-        last_action=args.last_action,
-        use_diff=(args.head_type == "diffusion"), # Diff still have bugs of loaded data mismatch
-        n_timesteps=args.n_timesteps,
+        use_state=args.use_state,
+        use_diff=(args.head_type == "diffusion"),  # Diff still have bugs of loaded data mismatch
         diff_horizon=args.diff_horizon,
+        last_action=args.last_action,
+        n_timesteps=args.n_timesteps,
+        use_hist=args.use_hist,
         predict_epsilon=args.predict_epsilon,
-        sep_lm_head=args.sep_lm_head,
-        unfreeze_vit=args.unfreeze_vit,
         multi_step_action=args.multi_step_action,
+        sep_lm_head=args.sep_lm_head,
         llm_name=args.llm_name,
         pooling=args.pooling,
         residual=args.residual,
         tcp_rel=args.tcp_rel,
         decoder_type=args.decoder_type,
         hidden_size=args.hidden_size,
+        debug=args.debug,
+        freeze_embed=args.freeze_embed,
+        train_params=args.train_params,
+        unfreeze_vit=args.unfreeze_vit,
         freeze_sampler=args.freeze_sampler,
-        fwd_pred=args.fwd_pred,
-        fwd_pred_hand=args.fwd_pred_hand,
-        no_image_patch=args.no_image_patch,
-        global_latent=args.global_latent,
+        use_local_files=args.offline,
     )
 
     print(
@@ -406,7 +329,7 @@ def main():
         model = model.float()
     if args.head_type == "diffusion" and (not args.debug):
         normalizer = model.diffusion_model.normalizer
-        all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i,1),True)["actions"] for i in range(0,10000)])
+        all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i,1), True)["actions"] for i in range(0,10000)])
         normalizer.fit(all_actions, last_n_dims=1, mode='limits')
 
     model = model.to(device_id)

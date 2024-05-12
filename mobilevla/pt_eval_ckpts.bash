@@ -14,13 +14,15 @@ sudo apt-get -y install meson
 sudo apt-get -y build-dep mesa
 
 # !!! Set for your own path
-calvin_dataset_path='calvin_data/task_ABCD_D'
+calvin_dataset_path='/home/vipuser/proj/calvin_data/task_ABCD_D'
 # calvin_conf_path
-calvin_conf_path="calvin/calvin_models/conf"
+calvin_conf_path="/home/vipuser/proj/calvin/calvin_models/conf"
 # language model path
-lm_path=''
+lm_path='/home/vipuser/proj/pretrain/MobileLLaMA-1.4B-Chat'
 # tokenizer path
-tokenizer_path=''
+tokenizer_path='/home/vipuser/proj/pretrain/MobileLLaMA-1.4B-Chat'
+#projector type
+mm_projector_type='ldpnetv2'
 
 evaluate_from_checkpoint=$1
 log_file=$2
@@ -34,16 +36,17 @@ node_num=8
 
 if [ ${use_gripper} -eq 1 ] && [ ${use_state} -eq 1 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
     --use_gripper \
     --use_state \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLA-LSTM-Eval \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \
@@ -52,15 +55,16 @@ fi
 
 if [ ${use_gripper} -eq 1 ] && [ ${use_state} -eq 0 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6099 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6099 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
     --use_gripper \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLA-LSTM-Eval \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \
@@ -69,14 +73,15 @@ fi
 
 if [ ${use_gripper} -eq 0 ] && [ ${use_state} -eq 0 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLA-LSTM-Eval \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
+    --mm_projector_type ${mm_projector_type}\
     --cross_attn_every_n_layers 4 \
     --evaluate_from_checkpoint ${evaluate_from_checkpoint} \
     --calvin_conf_path ${calvin_conf_path} \
