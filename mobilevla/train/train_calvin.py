@@ -54,11 +54,11 @@ def main():
     parser.add_argument(
         "--run_name",
         type=str,
-        default="MobileVLA",
+        default="MobileVLA-LSTM",
         help="used to name saving directory and wandb run",
     )
-    parser.add_argument("--use_media_placement_augmentation", action="store_true")
-    parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--use_media_placement_augmentation", default=False, action="store_true")
+    parser.add_argument("--offline", default=False, action="store_true")
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--window_size", type=int, default=32)
 
@@ -103,10 +103,12 @@ def main():
     parser.add_argument("--report_to_wandb", default=False, action="store_true")
     parser.add_argument(
         "--wandb_project",
+        default='MobileVLA',
         type=str,
     )
     parser.add_argument(
         "--wandb_entity",
+        default='wandb.ai/MobileVLAs',
         type=str,
     )
     parser.add_argument(
@@ -231,6 +233,7 @@ def main():
     parser.add_argument("--llm_name", type=str, default='mobilellama-1.4b')
     parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--multi_step_action", type=int, default=1, help="multiple step action prediction")
+    parser.add_argument('--co_train', type=bool, default=False, action='store_true', help='whether top co-training')
 
     args = parser.parse_args()
     
@@ -326,7 +329,7 @@ def main():
         model = model.float()
     if args.head_type == "diffusion" and (not args.debug):
         normalizer = model.diffusion_model.normalizer
-        all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i,1),True)["actions"] for i in range(0,10000)])
+        all_actions = np.vstack([calvin_dataset.dataset.__getitem__((i,1), True)["actions"] for i in range(0,10000)])
         normalizer.fit(all_actions, last_n_dims=1, mode='limits')
 
     model = model.to(device_id)

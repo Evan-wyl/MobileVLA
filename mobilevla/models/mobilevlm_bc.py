@@ -144,7 +144,7 @@ class BCMobileVLM(nn.Module):
                 )
             else:
                 raise NotImplementedError
-        elif decoder_type=='gpt':
+        elif decoder_type == 'gpt':
             lm_head = GPTDecoder(in_features, self.window_size, use_diff=use_diff, last_action=last_action, fusion_mode=fusion_mode, multi_step_action=multi_step_action, pooling=pooling, hidden_size=hidden_size)
             self.lang_encoder.lm_head = self.action_head = lm_head
         else:
