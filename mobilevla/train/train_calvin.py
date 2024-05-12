@@ -227,13 +227,14 @@ def main():
         action="store_true"
     )
 
+    parser.add_argument('--co_train', type=bool, default=False, action='store_true', help='whether top co-training')
+
     # For GPT decoder
     parser.add_argument("--hidden_size", type=int, default=768)
     parser.add_argument("--decoder_type", type=str, default='lstm')
     parser.add_argument("--llm_name", type=str, default='mobilellama-1.4b')
     parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--multi_step_action", type=int, default=1, help="multiple step action prediction")
-    parser.add_argument('--co_train', type=bool, default=False, action='store_true', help='whether top co-training')
 
     args = parser.parse_args()
     

@@ -4,6 +4,10 @@ import open_clip
 from typing import Optional
 from mobilevla.models.mobilevlm_bc import BCMobileVLM
 
+from open_flamingo.open_flamingo.src.flamingo_lm import FlamingoLMMixin
+from open_flamingo.open_flamingo.src.utils import extend_instance
+from open_flamingo.open_flamingo.src.factory import _infer_decoder_layers_attr_name
+
 
 def get_transforms(
     clip_vision_encoder_path: str = "ViT-L-14",
@@ -65,6 +69,7 @@ def create_model_and_transforms(
         unfreeze_vit=False,
         freeze_sampler=False,
         use_local_files: bool = False,
+        decoder_layers_attr_name: str = None,
 ):
     vision_encoder, _, image_processor = open_clip.create_model_and_transforms(
         clip_vision_encoder_path, pretrained=clip_vision_encoder_pretrained
@@ -94,6 +99,11 @@ def create_model_and_transforms(
             lang_encoder_path, local_files_only=use_local_files, trust_remote_code=True
         )
 
+    extend_instance(lang_encoder, FlamingoLMMixin)
+
+    if decoder_layers_attr_name is None:
+        decoder_layers_attr_name = _infer_decoder_layers_attr_name(lang_encoder)
+    lang_encoder.set_decoder_layers_attr_name(decoder_layers_attr_name)
     lang_encoder.resize_token_embeddings(len(text_tokenizer))
     # lang_encoder.config = LlamaConfig.from_pretrained(lang_encoder_path)
     

@@ -14,7 +14,7 @@ We support pre-trained vision encoders from the [OpenCLIP](https://github.com/ml
 We also support pre-trained language models from the `transformers` package, such as [LLaMA](https://huggingface.co/models?search=llama) models.
 
 ``` python
-from robot_flamingo.factor import create_model_and_transforms
+from mobilevla.factory import create_model_and_transforms
 
 model, image_processor, tokenizer = create_model_and_transforms(
     clip_vision_encoder_path="ViT-L-14",

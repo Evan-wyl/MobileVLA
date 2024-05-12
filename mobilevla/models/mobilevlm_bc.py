@@ -84,22 +84,13 @@ class BCMobileVLM(nn.Module):
         self.residual = residual
 
         if not debug:
-            if 'llama' in llm:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    use_media_placement_augmentation=self.use_media_placement_augmentation,
-                    residual=residual,
-                )
-            else:
-                self.lang_encoder.init_flamingo(
-                    media_token_id=media_token_id,
-                    lang_hidden_size=self.lang_dim,
-                    vis_hidden_size=self.vis_dim,
-                    cross_attn_every_n_layers=cross_attn_every_n_layers,
-                    gradient_checkpointing=False,
-                )
+            self.lang_encoder.init_flamingo(
+                media_token_id=media_token_id,
+                lang_hidden_size=self.lang_dim,
+                vis_hidden_size=self.vis_dim,
+                cross_attn_every_n_layers=cross_attn_every_n_layers,
+                gradient_checkpointing=False,
+            )
 
         if sep_resampler:
             if 'ldpnet' in mm_projector_type:
