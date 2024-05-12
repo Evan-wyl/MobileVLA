@@ -1,7 +1,7 @@
 #!/bin/bash
-
-export PATH=$PATH:/home/vipuser/proj/mobilevla/mobilevla
-export PYTHONPATH=$PYTHONPATH:/home/vipuser/proj/mobilevla/mobilevla
+scp -r .cache/clip ~/.cache/
+export PATH=$PATH:/home/vipuser/proj/MobileVLA/mobilevla
+export PYTHONPATH=$PYTHONPATH:/home/vipuser/proj/MobileVLA/mobilevla
 
 # dataset path
 calvin_dataset_path='/home/vipuser/proj/calvin_data/task_ABCD_D'
@@ -14,10 +14,11 @@ mm_projector_type='ldpnetv2'
 
 subfix=`date "+%Y%m%d-%H%M"`
 log_file="/home/vipuser/proj/logs/training_"${subfix}".log"
-source /home/vipuser/anaconda3/bin/activate calvin_mpt
+source /mnt/bn/robotics/resources/anaconda3_arnold/bin/activate calvin_mpt
 #python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2  --master_port=6042 robot_flamingo/train/train_calvin.py \
 torchrun --nnodes=1 --nproc_per_node=8 --master_port=6042 mobilevla/train/train_calvin.py \
     --report_to_wandb \
+    --co_train \
     --llm_name mobilellama-1.4b \
     --use_gripper \
     --fusion_mode post \
@@ -25,7 +26,7 @@ torchrun --nnodes=1 --nproc_per_node=8 --master_port=6042 mobilevla/train/train_
     --precision fp32 \
     --num_epochs 5 \
     --batch_size_calvin 6 \
-    --run_name MobileVLA-LSTM \
+    --run_name MobileVLA-LSTM-Cotrain \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
