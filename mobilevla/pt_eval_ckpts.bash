@@ -34,13 +34,13 @@ node_num=8
 
 if [ ${use_gripper} -eq 1 ] && [ ${use_state} -eq 1 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
     --use_gripper \
     --use_state \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLADBG \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
@@ -52,12 +52,12 @@ fi
 
 if [ ${use_gripper} -eq 1 ] && [ ${use_state} -eq 0 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6099 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6099 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
     --use_gripper \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLADBG \
     --calvin_dataset ${calvin_dataset_path} \
     --lm_path ${lm_path} \
     --tokenizer_path ${tokenizer_path} \
@@ -69,9 +69,9 @@ fi
 
 if [ ${use_gripper} -eq 0 ] && [ ${use_state} -eq 0 ]
 then
-torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 robot_flamingo/eval/eval_calvin.py \
+torchrun --nnodes=1 --nproc_per_node=${node_num}  --master_port=6066 mobilevla/eval/eval_calvin.py \
     --precision fp32 \
-    --run_name RobotFlamingoDBG \
+    --run_name MobileVLADBG \
     --window_size ${window_size} \
     --fusion_mode ${fusion_mode} \
     --calvin_dataset ${calvin_dataset_path} \

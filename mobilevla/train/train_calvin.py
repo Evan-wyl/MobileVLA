@@ -179,7 +179,6 @@ def main():
         help="whether use separate resamplers for third party and gripper camera",
     )
     parser.add_argument("--train_params", type=int, default=-1)
-    parser.add_argument('--rgb_pad', type=int, default=-1)
     parser.add_argument('--gripper_pad', type=int, default=-1)
     parser.add_argument('--n_timesteps', type=int, default=150, help="diffusion time steps")
     parser.add_argument(
@@ -205,11 +204,6 @@ def main():
     )
     parser.add_argument(
         "--use_hist",
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        "--traj_cons",
         default=False,
         action="store_true"
     )
